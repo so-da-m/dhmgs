@@ -1,6 +1,6 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "displayName": "MNNH DHMGS",
   "description": "Editor-only DHMGS download, Generic baking, and video preview with build-safe SMPL-X playback.",
   "unity": "6000.5",

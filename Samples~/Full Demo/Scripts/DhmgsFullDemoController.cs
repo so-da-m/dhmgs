@@ -24,6 +24,7 @@ namespace Mnnh.Dhmgs.Samples
 		[SerializeField] private bool _loop = true;
 		[SerializeField] private string _defaultBaseUrl = "http://192.168.1.128:8090";
 		[SerializeField] private Camera _previewCamera;
+		[SerializeField] private DhmgsFixedAvatarCamera _directPreviewCamera;
 		[SerializeField] private DhmgsFixedAvatarCamera _bakedPreviewCamera;
 
 		[Header("Fetch")]
@@ -238,6 +239,7 @@ namespace Mnnh.Dhmgs.Samples
 			}
 
 			_player.Play(motion, clock);
+			RelockPreviewCameras();
 			OnSpeedChanged(_speedSlider != null ? _speedSlider.value : 1f);
 			return _player.IsPlaying;
 		}
@@ -286,7 +288,14 @@ namespace Mnnh.Dhmgs.Samples
 		private void OnAvatarChanged(int value)
 		{
 			_player?.SetAvatarIndex(value - 1);
+			RelockPreviewCameras();
 			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
+		}
+
+		private void RelockPreviewCameras()
+		{
+			_directPreviewCamera?.Relock();
+			_bakedPreviewCamera?.Relock();
 		}
 
 		private void OnClothesChanged(int value)

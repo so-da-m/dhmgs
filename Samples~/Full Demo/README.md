@@ -13,6 +13,8 @@ The compact Canvas panel in the upper-left restores the original workflow:
 
 The upper-right wide view and lower-right detail view are live RenderTextures. Drag with the left mouse button to orbit, drag with another mouse button to pan, and use the wheel to zoom.
 
+Female, Male, Neutral, and the freshly baked Generic preview all reuse the package's original `Dhmgs_SkinTransparent` material. The scene also carries the original directional-light setup.
+
 This sample references only assets in this sample folder and in the MNNH DHMGS package. It does not reference `Assets/Mnnh.Dhmgs/Content`, `PromptGenTest`, `DhTest`, or any project-specific scene, prefab, material, font, or input actions.
 
 **Fetch** is available only while running the scene in the Unity Editor. It downloads the Attempt ID, saves a persistent `DhmgsMotionAsset` and Generic AnimationClip under `Assets/Mnnh.Dhmgs/Content/Generated/{attemptId}/`, and starts playback. The Generic clip uses the package-owned Neutral SMPL-X rig. If a preview video is present, the Editor displays it in sync and the Video Opacity slider controls it.

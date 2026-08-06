@@ -16,6 +16,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 	internal static class DhmgsFullDemoEditorImportBridge
 	{
 		private const string GenericRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
+		private const string SkinMaterialGuid = "f7b072368c25ef54e8b35a56058f4183";
 
 		private sealed class PreviewSession
 		{
@@ -74,6 +75,8 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			ThrowIfUnavailable(context, cancellationToken);
 			string genericRigPath = AssetDatabase.GUIDToAssetPath(GenericRigGuid);
 			GameObject genericRig = AssetDatabase.LoadAssetAtPath<GameObject>(genericRigPath);
+			string skinMaterialPath = AssetDatabase.GUIDToAssetPath(SkinMaterialGuid);
+			Material skinMaterial = AssetDatabase.LoadAssetAtPath<Material>(skinMaterialPath);
 			DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
 				import,
 				new DhmgsAssetWriteOptions
@@ -123,6 +126,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				session ??= GetOrCreateSession(context);
 				session.Preview.PlayGeneric(
 					genericRig,
+					skinMaterial,
 					written.GenericClip,
 					clock,
 					import.Motion.fps,

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.1] - 2026-08-06
+
+### Fixed
+
+- Restored the original white UI tint on both RenderTexture panels so the wide and detail camera outputs are visible at full brightness.
+- Restored the package's original `Dhmgs_SkinTransparent` material and legacy directional light for Female, Male, and Neutral avatars.
+- Applied the same original skin material to the freshly baked Generic preview instead of relying on the raw FBX material.
+- Relocked both preview cameras when playback or the active avatar changes.
+
+### Removed
+
+- Removed the sample-only green, pink, and blue avatar materials and their replacement shader.
+
 ## [0.5.0] - 2026-08-06
 
 ### Added

@@ -99,6 +99,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 
 		public void PlayGeneric(
 			GameObject prefab,
+			Material previewMaterial,
 			AnimationClip clip,
 			IDhmgsPlaybackClock clock,
 			float fps,
@@ -143,6 +144,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 					if (renderer != null)
 					{
 						renderer.updateWhenOffscreen = true;
+						ApplyPreviewMaterial(renderer, previewMaterial);
 					}
 				}
 
@@ -280,6 +282,26 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				DestroyImmediate(value);
 			}
+		}
+
+		private static void ApplyPreviewMaterial(Renderer renderer, Material previewMaterial)
+		{
+			if (renderer == null || previewMaterial == null)
+			{
+				return;
+			}
+
+			Material[] materials = renderer.sharedMaterials;
+			if (materials == null || materials.Length == 0)
+			{
+				renderer.sharedMaterial = previewMaterial;
+				return;
+			}
+			for (int index = 0; index < materials.Length; index++)
+			{
+				materials[index] = previewMaterial;
+			}
+			renderer.sharedMaterials = materials;
 		}
 	}
 }
