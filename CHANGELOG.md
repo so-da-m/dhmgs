@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0] - 2026-08-06
+
+### Changed
+
+- Split the package into a build-safe runtime player, optional runtime UI, and Editor-only import/bake pipeline.
+- Replaced the coupled download-and-play flow with `DhmgsImportPipeline`, `DhmgsAssetWriter`, `DhmgsMotionPlayer`, and `DhmgsRigDriver`.
+- Moved archive parsing, HTTP download, video overlay, preview, and AnimationClip baking out of the Player assembly.
+- Preserved the serialized `DhmgsMotionAsset` layout so previously generated assets remain playable.
+- Removed automatic project mutation; validation and HTTP/layer setup are now explicit menu actions.
+- Added EditMode tests for archive parsing and motion conversion.
+- Removed the unused Input System dependency.
+
 ## [0.1.0] - 2026-08-06
 
 ### Added

@@ -1,16 +1,53 @@
 # MNNH DHMGS Package Guide
 
-## 구조
+## Assembly boundaries
 
-- `Runtime/`: 런타임 API, SMPL-X 적용, 서버 다운로드, 재생, 베이크 로직
-- `Editor/`: 임포터 창, Editor coroutine, 프로젝트 부트스트랩
-- `Assets/Mnnh.Dhmgs/Content`: 패키지 밖에 보관하는 릴리스 후보 콘텐츠와 `Generated` 결과
+| Assembly | Player build | Responsibility |
+|---|---:|---|
+| `Mnnh.Dhmgs.Runtime` | Yes | Motion data, SMPL-X rig application, playback clock and coordinator |
+| `Mnnh.Dhmgs.UI` | Optional | UI controls and avatar inspection view for imported motion |
+| `Mnnh.Dhmgs.Editor` | No | HTTP/archive import, decoding, asset writing, clip baking and preview |
+| `Mnnh.Dhmgs.Editor.Tests` | No | Import contract tests |
 
-## 릴리스 통과 조건
+The runtime assembly has no HTTP, ZIP, `UnityEditor`, UI, or video reference. Editor-produced `DhmgsMotionAsset` instances retain their serialized field layout and can be referenced directly by Player scenes and prefabs.
 
-1. `package.json` 파싱 성공
-2. 패키지 루트 내 `.meta` 누락 및 GUID 중복 없음
-3. 패키지 자산이 소비 프로젝트의 `Assets/` 자산을 참조하지 않음
-4. 새 Unity 6000.5.1f1 프로젝트에서 Git URL 설치 성공
-5. Editor 컴파일, Player 빌드, 주요 다운로드/재생 흐름 확인
-6. Git tag와 `package.json` 버전 일치
+## Import flow
+
+```text
+internal HTTP or archive bytes
+  -> DhmgsImportPipeline
+  -> validated manifest + sequence
+  -> DhmgsMotionAsset in memory
+  -> DhmgsAssetWriter
+  -> .asset and optional AnimationClips under Assets/
+```
+
+`DhmgsImportPipeline` owns acquisition and decoding. `DhmgsAssetWriter` owns `AssetDatabase` writes and clip baking. `DhmgsMotionPlayer` never invokes either one.
+
+## Build contract
+
+A Player build may consume:
+
+- `DhmgsMotionAsset`
+- baked `AnimationClip` assets
+- `DhmgsMotionPlayer`, `DhmgsRigDriver`, and `DhmgsRealtimeClock`
+- optional `Mnnh.Dhmgs.UI` components
+
+A Player build does not consume:
+
+- server URLs or credentials
+- ZIP/JSON source parsing
+- `AssetDatabase` writes
+- preview MP4 files or `VideoPlayer` synchronization
+- AnimationClip baking
+
+Reference generated assets from a build scene/prefab or register them with the consuming project's chosen dynamic asset system.
+
+## Release checklist
+
+1. Parse every `.json` and `.asmdef` file.
+2. Run `Mnnh.Dhmgs.Editor.Tests` in EditMode.
+3. Compile Editor and a representative Player target in Unity 6000.5.1f1.
+4. Verify a clean project can install the private Git URL tag.
+5. Keep only Female/Male/Neutral base FBX files in `SmplxRig/Raw`.
+6. Confirm `package.json` version and Git tag match.

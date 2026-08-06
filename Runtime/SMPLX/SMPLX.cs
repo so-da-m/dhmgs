@@ -200,7 +200,8 @@ namespace SMPLXPlugin
 					Debug.LogError("[SMPL-X] Cannot find betas-to-joint regressor: SMPLX/Resources/" + name);
 					return false;
 				}
-				SimpleJSON.JSONNode node = SimpleJSON.JSON.Parse(ta.text);
+				Mnnh.Dhmgs.ThirdParty.SimpleJson.JSONNode node =
+					Mnnh.Dhmgs.ThirdParty.SimpleJson.JSON.Parse(ta.text);
 
 				for (int i = 0; i < NUM_JOINTS; i++)
 				{

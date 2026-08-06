@@ -1,0 +1,18 @@
+{
+    "name": "Mnnh.Dhmgs.UI",
+    "rootNamespace": "Mnnh.Dhmgs",
+    "references": [
+        "Mnnh.Dhmgs.Runtime",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

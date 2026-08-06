@@ -2,16 +2,18 @@
     "name": "Mnnh.Dhmgs.Editor",
     "rootNamespace": "Mnnh.Dhmgs.Editor",
     "references": [
-        "Mnnh.Dhmgs.Runtime",
-        "Unity.TextMeshPro"
+        "Mnnh.Dhmgs.Runtime"
     ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "System.IO.Compression.dll",
+        "System.IO.Compression.FileSystem.dll"
+    ],
     "autoReferenced": false,
     "defineConstraints": [],
     "versionDefines": [],

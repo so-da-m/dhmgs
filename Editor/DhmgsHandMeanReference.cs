@@ -4,7 +4,7 @@ namespace Mnnh.Dhmgs.Editor
 {
 	/// <summary>
 	/// 회귀 가드용 참조 상수. 옛 검증된 손 평균(이미 Unity 좌표로 변환된 axis-angle).
-	/// 서버 manifest의 native hand_pose_offset을 SmplxToUnity.AxisAngleToUnity로 변환했을 때
+	/// 서버 manifest의 native hand_pose_offset을 DhmgsMotionDecoder.AxisAngleToUnity로 변환했을 때
 	/// 이 값과 일치해야 서버 값이 옛 trial-and-error 결과와 같다고 확인된다.
 	/// </summary>
 	public static class DhmgsHandMeanReference
@@ -59,7 +59,7 @@ namespace Mnnh.Dhmgs.Editor
 			{
 				int b = j * 3;
 				Vector3 native = new Vector3(nativeOffset[b], nativeOffset[b + 1], nativeOffset[b + 2]);
-				Vector3 unity = SmplxToUnity.AxisAngleToUnity(native);
+				Vector3 unity = DhmgsMotionDecoder.AxisAngleToUnity(native);
 				maxDiff = Mathf.Max(maxDiff, Mathf.Abs(unity.x - reference[b]));
 				maxDiff = Mathf.Max(maxDiff, Mathf.Abs(unity.y - reference[b + 1]));
 				maxDiff = Mathf.Max(maxDiff, Mathf.Abs(unity.z - reference[b + 2]));

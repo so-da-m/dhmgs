@@ -1,91 +1,115 @@
 # MNNH DHMGS
 
-Unity에서 DHMGS 결과를 다운로드하고, 모션 자산으로 베이크하며, SMPL-X 리그에서 재생하기 위한 사내 Unity Package Manager 패키지입니다.
+DHMGS 결과를 Unity 에셋으로 가져오고 SMPL-X 리그에서 재생하기 위한 사내용 Unity Package입니다.
 
-## 패키지 루트
+핵심 경계는 명확합니다.
 
-배포 저장소에는 기본적으로 다음 항목만 필수입니다.
+- 다운로드, ZIP/JSON 해석, 좌표 변환, 에셋 저장, AnimationClip 베이크는 **Unity Editor에서만** 실행됩니다.
+- Player 빌드는 이미 생성된 `DhmgsMotionAsset`과 AnimationClip만 소비합니다.
+- 영상은 Editor 정합 미리보기 보조물입니다. 현재 Player 워크플로에는 포함하지 않습니다.
 
-- `package.json`
-- `Runtime/` 및 `Runtime.meta`
-- `Editor/` 및 `Editor.meta`
-- `SmplxRig/Raw/` 의 기본 `SmplxFemale.fbx`, `SmplxMale.fbx`, `SmplxNeutral.fbx`
-- `README.md`, `CHANGELOG.md`, `LICENSE.md`, `Third Party Notices.md`
+## 설치
 
-기본 SMPL-X Female/Male/Neutral FBX 세 개는 패키지에 포함됩니다. Kyra, 의상, Humanoid 변형, 프리팩, 폰트, 신, 컨트롤러는 패키지 밖이지만 같은 DHMGS 상위 폴더인 `Assets/Mnnh.Dhmgs/Content`에 선택 콘텐츠로 분리되어 있습니다. GitHub 패키지 저장소에는 `Package` 내용만 올립니다.
+Unity Package Manager의 **Add package from git URL**에서 다음처럼 태그를 고정합니다.
 
-현재 Unity 프로젝의 DHMGS 구조는 다음과 같습니다.
+```text
+https://github.com/mn-nh/mnnh-dhmgs.git#v0.2.0
+```
+
+사내 private 저장소이므로 설치하는 PC의 Git 자격 증명에 저장소 읽기 권한이 있어야 합니다. 업데이트는 `package.json` 또는 Package Manager의 Git URL 태그를 새 버전으로 바꾸는 방식으로 수행합니다.
+
+Git LFS는 사용하지 않습니다. 포함된 기본 FBX 세 개는 각각 GitHub의 단일 파일 제한보다 작습니다.
+
+## 포함 범위
+
+패키지 저장소에는 다음만 들어갑니다.
+
+```text
+Package/
+├─ Runtime/                 # 빌드 가능한 재생 코어
+│  └─ UI/                  # 선택적 런타임 UI 어셈블리
+├─ Editor/
+│  ├─ Import/              # 다운로드·해석·변환·에셋 저장·클립 베이크
+│  └─ Preview/             # 영상/휴머노이드 Editor 미리보기
+├─ Tests/Editor/
+├─ SmplxRig/Raw/
+│  ├─ SmplxFemale.fbx
+│  ├─ SmplxMale.fbx
+│  └─ SmplxNeutral.fbx
+└─ package.json
+```
+
+Kyra, 의상, 프로젝트 전용 prefab/scene/font/controller와 생성 결과는 패키지 밖의 소비 프로젝트에 둡니다. 이 프로젝트의 기본 위치는 다음과 같습니다.
 
 ```text
 Assets/Mnnh.Dhmgs/
-├─ Package/             # Git/UPM으로 배포할 패키지
-└─ Content/             # 소비 프로젝에만 남는 콘텐츠
-   ├─ Generated/        # 다운로드·베이크 결과
-   ├─ SmplxRig/         # 선택 모델/프리팩
-   ├─ Rig/
-   ├─ Prefabs/
-   ├─ Fonts/
-   └─ Scene/
+├─ Package/                 # 이 Git/UPM 패키지
+└─ Content/                 # 현재 프로젝트에만 속하는 선택 콘텐츠
+   └─ Generated/            # 가져오기 결과
 ```
 
-## 명시적 의존성
+`PromptGenTest`와 `DhTest`는 패키지에 포함되지 않습니다. `DhTest.Editor`만 소비 프로젝트의 Editor 전용 어댑터로 `Mnnh.Dhmgs.Editor`를 참조합니다.
 
-`package.json`은 현재 검증 프로젝트에서 사용 중인 다음 의존성을 고정합니다.
+## Editor 가져오기
 
-- Unity UI / TextMesh Pro: `com.unity.ugui` 2.5.0
-- Input System: `com.unity.inputsystem` 1.19.0
-- Universal Render Pipeline: `com.unity.render-pipelines.universal` 17.5.0
-- Animation, Playables/Director, Video, UnityWebRequest 내장 모듈
+1. `DHMGS > Importer`를 엽니다.
+2. 사내 DHMGS 서버의 Base URL과 attempt ID를 입력합니다.
+3. 필요할 때만 Generic/Humanoid 베이크용 rig를 선택합니다.
+4. **Import**를 누릅니다.
 
-기준 Unity 버전은 `6000.5.1f1`입니다. 다른 Unity 버전을 지원하려면 의존성 버전을 낮추기 전에 깨끗한 프로젝트에서 임포트와 Player 빌드를 다시 검증해야 합니다.
-
-## 선택 콘텐츠 규칙
-
-`Assets/Mnnh.Dhmgs/Content`에서 릴리스에 포함할 자산을 고를 때는 다음 규칙을 지킵니다.
-
-1. Unity Editor에서 자산을 이동하여 `.meta` GUID를 보존합니다.
-2. 프리팩만 고르지 말고 `AssetDatabase.GetDependencies` 결과에 나오는 FBX, material, font asset까지 함께 포함합니다.
-3. `Scene/` 과 `Base.controller`는 프로젝트 로컬 자산을 참조하는 데모 콘텐츠이므로, 외부 GUID 참조를 정리한 후에만 릴리스에 포함합니다.
-4. 기본 FBX는 개별 크기가 GitHub의 100 MiB 제한보다 작으므로 일반 Git 바이너리로 추적합니다. 100 MiB를 넘는 추가 자산은 패키지에 포함하지 마십시오.
-5. 콘텐츠를 고른 뒤 새 Unity 프로젝트에 Git URL로 설치하여 missing script, missing material, missing prefab이 없는지 확인합니다.
-
-`Samples~` 폴더로 옮기는 것만으로는 Git 다운로드 크기가 줄지 않습니다. 대용량 리그를 제외하려면 릴리스 저장소에서 해당 파일을 실제로 제외하거나 별도 콘텐츠 저장소로 분리해야 합니다.
-
-## Git URL 설치
-
-패키지 폴더 자체가 GitHub 저장소 루트인 경우:
+기본 서버 주소는 사내 주소 `http://192.168.1.128:8090`이며 EditorPrefs에 로컬 저장됩니다. 기본 결과 위치는 아래와 같습니다.
 
 ```text
-https://github.com/<organization>/mnnh-dhmgs.git#v0.1.0
+Assets/Mnnh.Dhmgs/Content/Generated/{attemptId}/
+├─ {attemptId}.asset
+├─ manifest.json
+├─ sequence.json
+└─ 선택한 AnimationClip들
 ```
 
-Unity 프로젝트 저장소의 `Assets/Mnnh.Dhmgs/Package` 하위 폴더로 배포하는 경우:
+선택적으로 저장하는 MP4는 Unity 에셋이 아니라 다음 로컬 경로에만 기록됩니다.
 
 ```text
-https://github.com/<organization>/<repository>.git?path=/Assets/Mnnh.Dhmgs/Package#v0.1.0
+Application.persistentDataPath/Dhmgs/{attemptId}/video.mp4
 ```
 
-전체 Unity 프로젝트를 저장소로 삼으면 UPM이 패키지 하위 폴더만 사용하더라도 Git은 저장소 전체를 가져옵니다. 배포용으로는 이 패키지 폴더만 담은 별도 저장소를 권장합니다.
+프로젝트 설정은 자동 변경하지 않습니다. HTTP 허용이나 미리보기 레이어가 필요하면 `DHMGS > Project` 메뉴의 명시적 명령을 사용합니다.
 
-## 다운로드 및 생성 경로
+## Player에서 재생
 
-- Editor에서 생성하는 ScriptableObject, JSON, AnimationClip: `Assets/Mnnh.Dhmgs/Content/Generated/{attemptId}`
-- 영상 MP4: `Application.persistentDataPath/Dhmgs/{attemptId}/video.mp4`
+씬이나 prefab에서 생성된 `DhmgsMotionAsset`을 직렬화 참조하면 Unity가 Player 빌드에 포함합니다. 런타임 재생의 최소 코드는 다음과 같습니다.
 
-Git/UPM 패키지는 설치 후 읽기 전용일 수 있으므로 다운로드 결과를 `Package` 안에 쓰지 않습니다. Editor 자산은 같은 DHMGS 상위 폴더의 `Content/Generated`에, Player에서 쓰는 영상은 플랫폼이 허용하는 `persistentDataPath`에 저장합니다.
+```csharp
+using Mnnh.Dhmgs;
 
-## 설치 시 프로젝트 변경
+player.Play(motionAsset, new DhmgsRealtimeClock(loop: true));
+```
 
-Editor 부트스트랩은 현재 다음 작업을 자동으로 수행합니다.
+- `DhmgsMotionPlayer`: 재생 상태, clock, 활성 avatar/clothes를 조정합니다.
+- `DhmgsRigDriver`: 한 SMPL-X rig에 특정 프레임을 적용합니다.
+- `DhmgsMotionAsset`: 변환이 끝난 빌드 안전 데이터입니다.
+- `DhmgsMotionPlayerPanel`: 이미 가져온 asset을 재생하는 선택적 UI입니다. 다운로드 기능은 없습니다.
 
-- TMP Essential Resources 임포트
-- `DhmgsHumanoid` 레이어 생성
-- Insecure HTTP를 `AlwaysAllowed`로 설정
+직접 참조하지 않은 동적 에셋을 빌드에서 찾는 정책(Addressables, Resources, 자체 catalog)은 소비 프로젝트가 정합니다. 패키지는 특정 배포 방식을 강제하지 않습니다.
 
-서버 URL 기본값은 코드와 프리팩에 직렬화되어 있으므로 사내 환경에 맞게 확인해야 합니다.
+## 공개 Editor API
+
+EditorWindow가 아닌 다른 사내 도구에서도 동일한 파이프라인을 호출할 수 있습니다.
+
+```csharp
+DhmgsImportResult imported = await DhmgsImportPipeline.ImportAsync(
+    new DhmgsImportRequest(baseUrl, attemptId));
+
+DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
+    imported,
+    new DhmgsAssetWriteOptions());
+```
+
+다운로드 없이 이미 받은 ZIP 바이트를 처리하려면 `DhmgsImportPipeline.ImportArchive`를 사용합니다. 네트워크, 파싱, 변환과 Unity 에셋 저장이 분리되어 있어 UI나 다른 Editor 도구가 필요한 단계만 조합할 수 있습니다.
 
 ## 릴리스
 
-- 패키지 버전과 Git tag를 함께 올립니다: `0.1.0` ↔ `v0.1.0`.
-- 소비 프로젝트의 `packages-lock.json`은 설치된 Git commit을 고정합니다.
-- 편집 가능한 개발은 로컬/embedded package에서 하고, 배포 버전은 tag로 고정합니다.
+- `package.json` 버전과 Git 태그를 함께 올립니다: `0.2.0` ↔ `v0.2.0`.
+- 소비 프로젝트는 floating branch 대신 태그를 고정합니다.
+- `Content/Generated`와 프로젝트 전용 rig/scene은 패키지 저장소에 커밋하지 않습니다.
+- 100 MiB가 넘는 새 바이너리는 이 저장소에 넣지 말고 별도 콘텐츠 전달 방식을 사용합니다.
