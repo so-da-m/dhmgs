@@ -1,0 +1,17 @@
+{
+  "name": "Mnnh.Dhmgs.Samples.FullDemo",
+  "rootNamespace": "Mnnh.Dhmgs.Samples",
+  "references": [
+    "Mnnh.Dhmgs.Runtime",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

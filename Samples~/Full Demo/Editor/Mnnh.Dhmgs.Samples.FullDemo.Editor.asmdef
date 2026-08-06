@@ -1,0 +1,20 @@
+{
+  "name": "Mnnh.Dhmgs.Samples.FullDemo.Editor",
+  "rootNamespace": "Mnnh.Dhmgs.Samples.Editor",
+  "references": [
+    "Mnnh.Dhmgs.Runtime",
+    "Mnnh.Dhmgs.Editor",
+    "Mnnh.Dhmgs.Samples.FullDemo"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

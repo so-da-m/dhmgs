@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-08-06
+
+### Added
+
+- Added a Canvas-based Full Demo interface with Base URL and Attempt ID input.
+- Added an Editor-only bridge that downloads, imports, saves, and immediately plays an Attempt ID.
+- Added progress and status reporting for the sample import flow.
+
+### Changed
+
+- Replaced the sample's IMGUI overlay with a UGUI Canvas.
+- Kept runtime playback isolated from the Editor importer so already imported assets remain Player-build safe.
+- Restored the Input System dependency for Canvas input handling in the Full Demo sample.
+
 ## [0.3.0] - 2026-08-06
 
 ### Added
