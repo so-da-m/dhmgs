@@ -15,7 +15,7 @@ namespace Mnnh.Dhmgs
 	public sealed class DhmgsFixedAvatarCamera : MonoBehaviour, IDragHandler, IScrollHandler
 	{
 		[Header("대상")]
-		[Tooltip("프레이밍 대상(IDhmgsFramingTarget 구현). 컨트롤러=활성 아바타, HumanoidPreview=휴머노이드. 비우면 씬의 컨트롤러 자동.")]
+		[Tooltip("프레이밍 대상(IDhmgsFramingTarget 구현). 씬 격리를 위해 MotionPlayer 또는 Editor preview를 명시적으로 지정한다.")]
 		[SerializeField] private MonoBehaviour _targetSource;
 
 		[Header("출력")]
@@ -67,17 +67,24 @@ namespace Mnnh.Dhmgs
 			RawImage output = GetComponent<RawImage>();
 			_surface.Create("DhmgsFixedAvatarCamera", output, _textureWidth, _textureHeight,
 				_cullingMask, _fieldOfView, _nearClip, _farClip, _background);
+			_surface.SetEnabled(isActiveAndEnabled);
 
-			// 대상 해석: 지정한 MonoBehaviour가 IDhmgsFramingTarget이면 그걸, 아니면 씬의 컨트롤러를 기본으로.
+			// 대상은 항상 명시해 additive scene과 다른 도구의 플레이어를 건드리지 않는다.
 			_target = _targetSource as IDhmgsFramingTarget;
-			if (_target == null)
+			if (_target == null && _targetSource != null)
 			{
-				if (_targetSource != null)
-				{
-					Debug.LogWarning($"[DHMGS] Target Source가 IDhmgsFramingTarget 아님: {_targetSource.GetType().Name}");
-				}
-				_target = FindAnyObjectByType<DhmgsMotionPlayer>();
+				Debug.LogWarning($"[DHMGS] Target Source가 IDhmgsFramingTarget 아님: {_targetSource.GetType().Name}");
 			}
+		}
+
+		private void OnEnable()
+		{
+			_surface.SetEnabled(true);
+		}
+
+		private void OnDisable()
+		{
+			_surface.SetEnabled(false);
 		}
 
 		private void OnDestroy()
@@ -89,6 +96,19 @@ namespace Mnnh.Dhmgs
 		public void Relock()
 		{
 			_pivotLocked = false;
+		}
+
+		/// <summary>
+		/// Changes the framing target at runtime. This is used by Editor previews that are
+		/// created after Play Mode has already started.
+		/// </summary>
+		public void SetTarget(MonoBehaviour targetSource)
+		{
+			_targetSource = targetSource;
+			_target = targetSource as IDhmgsFramingTarget;
+			_lastPivot = null;
+			_pivotLocked = false;
+			_pan = Vector3.zero;
 		}
 
 		public void OnDrag(PointerEventData eventData)

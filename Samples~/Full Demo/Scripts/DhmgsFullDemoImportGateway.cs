@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 
 using Mnnh.Dhmgs;
 
+using UnityEngine;
+
 namespace Mnnh.Dhmgs.Samples
 {
 	public readonly struct DhmgsSampleImportProgress
@@ -19,45 +21,133 @@ namespace Mnnh.Dhmgs.Samples
 	}
 
 	/// <summary>
-	/// Runtime-safe registration point. The sample Editor assembly installs the implementation;
-	/// Player builds see no handler and keep only already imported motion playback.
+	/// Explicit sample-owned references used by Editor preview code. Passing this context
+	/// keeps additive scenes and unrelated tools from being discovered or modified globally.
+	/// </summary>
+	public sealed class DhmgsSampleImportContext
+	{
+		private static int _nextSessionId;
+
+		public DhmgsSampleImportContext(
+			DhmgsFullDemoController owner,
+			DhmgsMotionPlayer player,
+			Camera previewCamera,
+			DhmgsFixedAvatarCamera bakedPreviewCamera)
+		{
+			Owner = owner;
+			Player = player;
+			PreviewCamera = previewCamera;
+			BakedPreviewCamera = bakedPreviewCamera;
+			SessionId = owner != null ? Interlocked.Increment(ref _nextSessionId) : 0;
+		}
+
+		public DhmgsFullDemoController Owner { get; }
+		public DhmgsMotionPlayer Player { get; }
+		public Camera PreviewCamera { get; }
+		public DhmgsFixedAvatarCamera BakedPreviewCamera { get; }
+		public int SessionId { get; }
+		public bool IsActive => Owner != null && Owner.isActiveAndEnabled;
+	}
+
+	public sealed class DhmgsSampleImportResult
+	{
+		public DhmgsSampleImportResult(
+			DhmgsMotionAsset motion,
+			IDhmgsPlaybackClock clock,
+			string summary,
+			bool hasVideoPreview)
+		{
+			Motion = motion;
+			Clock = clock;
+			Summary = summary;
+			HasVideoPreview = hasVideoPreview;
+		}
+
+		public DhmgsMotionAsset Motion { get; }
+		public IDhmgsPlaybackClock Clock { get; }
+		public string Summary { get; }
+		public bool HasVideoPreview { get; }
+	}
+
+	/// <summary>
+	/// Runtime-safe registration point. The sample Editor assembly installs downloading,
+	/// baking, and video-preview handlers. Player builds retain only serialized playback.
 	/// </summary>
 	public static class DhmgsFullDemoImportGateway
 	{
-		public delegate Task<DhmgsMotionAsset> ImportHandler(
+		public delegate Task<DhmgsSampleImportResult> ImportHandler(
+			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
 			IProgress<DhmgsSampleImportProgress> progress,
 			CancellationToken cancellationToken);
 
-		private static ImportHandler _handler;
+		private static ImportHandler _importHandler;
+		private static Action<DhmgsSampleImportContext, float> _previewOpacityHandler;
+		private static Action<DhmgsSampleImportContext> _stopPreviewHandler;
 
-		public static bool IsAvailable => _handler != null;
+		public static bool IsAvailable => _importHandler != null;
 
-		public static void Register(ImportHandler handler)
+		public static bool SupportsVideoPreview(DhmgsSampleImportContext context)
 		{
-			_handler = handler;
+			return _previewOpacityHandler != null && context != null && context.PreviewCamera != null;
 		}
 
-		public static void Unregister(ImportHandler handler)
+		public static void Register(
+			ImportHandler importHandler,
+			Action<DhmgsSampleImportContext, float> previewOpacityHandler,
+			Action<DhmgsSampleImportContext> stopPreviewHandler)
 		{
-			if (_handler == handler)
+			_importHandler = importHandler;
+			_previewOpacityHandler = previewOpacityHandler;
+			_stopPreviewHandler = stopPreviewHandler;
+		}
+
+		public static void Unregister(ImportHandler importHandler)
+		{
+			if (_importHandler != importHandler)
 			{
-				_handler = null;
+				return;
 			}
+
+			_importHandler = null;
+			_previewOpacityHandler = null;
+			_stopPreviewHandler = null;
 		}
 
-		public static Task<DhmgsMotionAsset> ImportAndSaveAsync(
+		public static Task<DhmgsSampleImportResult> ImportAndSaveAsync(
+			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
 			IProgress<DhmgsSampleImportProgress> progress,
 			CancellationToken cancellationToken)
 		{
-			if (_handler == null)
+			if (_importHandler == null)
 			{
 				throw new InvalidOperationException("Attempt ID import is available in the Unity Editor only.");
 			}
-			return _handler(baseUrl, attemptId, progress, cancellationToken);
+			if (context == null)
+			{
+				throw new ArgumentNullException(nameof(context));
+			}
+
+			return _importHandler(context, baseUrl, attemptId, progress, cancellationToken);
+		}
+
+		public static void SetVideoOpacity(DhmgsSampleImportContext context, float opacity)
+		{
+			if (context != null)
+			{
+				_previewOpacityHandler?.Invoke(context, opacity);
+			}
+		}
+
+		public static void StopPreview(DhmgsSampleImportContext context)
+		{
+			if (context != null)
+			{
+				_stopPreviewHandler?.Invoke(context);
+			}
 		}
 	}
 }

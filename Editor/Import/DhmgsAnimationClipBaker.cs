@@ -1,8 +1,9 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
+using System.Threading;
 
 using UnityEditor;
-using UnityEditor.Animations;
 
 using UnityEngine;
 
@@ -11,8 +12,8 @@ namespace Mnnh.Dhmgs.Editor
 	/// <summary>
 	/// 베이크된 DhmgsMotionAsset을 모델 위에서 구동해 AnimationClip으로 굽는다.
 	/// 카메라 정합 배치는 제외하고 DhmgsRigDriver.ApplyPose로 범용 관절 포즈만 기록한다.
-	/// GameObjectRecorder/HumanPoseHandler는 에디터 전용이라 #if UNITY_EDITOR로 감싼다(에디터 전용 도구).
-	/// - Generic : GameObjectRecorder로 본 트랜스폼 녹화(그 리그 전용).
+	/// AnimationUtility/HumanPoseHandler are Editor-only, so this authoring utility is Editor-only.
+	/// - Generic: writes quaternion curves only for local rotations driven by DhmgsRigDriver.ApplyPose.
 	/// - Humanoid: HumanPoseHandler로 muscle 추출(휴머노이드 리타게팅, jaw/eye 일부 소실).
 	/// </summary>
 	public static class DhmgsAnimationClipBaker
@@ -24,18 +25,37 @@ namespace Mnnh.Dhmgs.Editor
 			public string error;
 		}
 
-		public static AnimationClip BakeGeneric(DhmgsMotionAsset asset, GameObject model, out string error)
+		public static AnimationClip BakeGeneric(
+			DhmgsMotionAsset asset,
+			GameObject model,
+			out string error,
+			CancellationToken cancellationToken = default)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			if (!Validate(asset, model, out error))
 			{
 				return null;
 			}
-			return BakeOnInstance(asset, model, (player, instance) => RecordGeneric(asset, player, instance));
+			return BakeOnInstance(
+				asset,
+				model,
+				(player, instance) => RecordGeneric(asset, instance, cancellationToken),
+				cancellationToken);
 		}
 
-		public static AnimationClip BakeHumanoid(DhmgsMotionAsset asset, GameObject model, out string error)
+		public static AnimationClip BakeHumanoid(
+			DhmgsMotionAsset asset,
+			GameObject model,
+			out string error,
+			CancellationToken cancellationToken = default)
 		{
-			if (!BakeHumanoidVariants(asset, model, out AnimationClip inPlace, out _, out error))
+			if (!BakeHumanoidVariants(
+				asset,
+				model,
+				out AnimationClip inPlace,
+				out _,
+				out error,
+				cancellationToken))
 			{
 				return null;
 			}
@@ -48,10 +68,12 @@ namespace Mnnh.Dhmgs.Editor
 		/// Root Motion 클립만 카메라 절대 위치를 제거한 pelvis 상대 이동을 보존한다.
 		/// </summary>
 		public static bool BakeHumanoidVariants(DhmgsMotionAsset asset, GameObject model,
-			out AnimationClip inPlace, out AnimationClip rootMotion, out string error)
+			out AnimationClip inPlace, out AnimationClip rootMotion, out string error,
+			CancellationToken cancellationToken = default)
 		{
 			inPlace = null;
 			rootMotion = null;
+			cancellationToken.ThrowIfCancellationRequested();
 			if (!Validate(asset, model, out error))
 			{
 				return false;
@@ -63,7 +85,13 @@ namespace Mnnh.Dhmgs.Editor
 			}
 
 			HumanoidClipPair pair = BakeOnInstance(asset, model,
-				(player, instance) => RecordHumanoidVariants(asset, player, instance, avatar));
+				(player, instance) => RecordHumanoidVariants(
+					asset,
+					player,
+					instance,
+					avatar,
+					cancellationToken),
+				cancellationToken);
 			if (pair == null || pair.inPlace == null || pair.rootMotion == null)
 			{
 				error = pair != null && !string.IsNullOrEmpty(pair.error)
@@ -112,8 +140,13 @@ namespace Mnnh.Dhmgs.Editor
 			return avatar;
 		}
 
-		private static T BakeOnInstance<T>(DhmgsMotionAsset asset, GameObject model, Func<DhmgsRigDriver, GameObject, T> record)
+		private static T BakeOnInstance<T>(
+			DhmgsMotionAsset asset,
+			GameObject model,
+			Func<DhmgsRigDriver, GameObject, T> record,
+			CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			GameObject instance = UnityEngine.Object.Instantiate(model);
 			try
 			{
@@ -123,6 +156,7 @@ namespace Mnnh.Dhmgs.Editor
 
 				DhmgsRigDriver player = instance.AddComponent<DhmgsRigDriver>();
 				player.Bind(instance.transform);
+				cancellationToken.ThrowIfCancellationRequested();
 				return record(player, instance);
 			}
 			finally
@@ -131,26 +165,80 @@ namespace Mnnh.Dhmgs.Editor
 			}
 		}
 
-		private static AnimationClip RecordGeneric(DhmgsMotionAsset asset, DhmgsRigDriver player, GameObject instance)
+		private static AnimationClip RecordGeneric(
+			DhmgsMotionAsset asset,
+			GameObject instance,
+			CancellationToken cancellationToken)
 		{
-			GameObjectRecorder recorder = new GameObjectRecorder(instance);
-			recorder.BindComponentsOfType<Transform>(instance, true);
-
-			float frameDuration = 1f / asset.fps;
-			for (int f = 0; f < asset.frameCount; f++)
+			cancellationToken.ThrowIfCancellationRequested();
+			Dictionary<string, Transform> transformsByName = new Dictionary<string, Transform>(StringComparer.Ordinal);
+			foreach (Transform candidate in instance.GetComponentsInChildren<Transform>(true))
 			{
-				player.ApplyPose(asset, f);
-				recorder.TakeSnapshot(frameDuration);
+				if (!transformsByName.ContainsKey(candidate.name))
+				{
+					transformsByName.Add(candidate.name, candidate);
+				}
 			}
 
 			AnimationClip clip = new AnimationClip { frameRate = asset.fps };
-			recorder.SaveToClip(clip);
-			return clip;
+			try
+			{
+				// Match DhmgsRigDriver.ApplyPose: pelvis is driven first, then any matching
+				// bone name can overwrite it. Duplicate bone names likewise use the last entry.
+				Dictionary<Transform, int> drivenTransforms = new Dictionary<Transform, int>();
+				if (transformsByName.TryGetValue("pelvis", out Transform pelvis))
+				{
+					drivenTransforms[pelvis] = -1;
+				}
+				for (int boneIndex = 0; boneIndex < asset.boneCount; boneIndex++)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					string boneName = asset.boneNames[boneIndex];
+					if (!string.IsNullOrEmpty(boneName)
+						&& transformsByName.TryGetValue(boneName, out Transform bone))
+					{
+						drivenTransforms[bone] = boneIndex;
+					}
+				}
+
+				foreach (KeyValuePair<Transform, int> driven in drivenTransforms)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					string path = AnimationUtility.CalculateTransformPath(driven.Key, instance.transform);
+					Quaternion[] rotations = new Quaternion[asset.frameCount];
+					Quaternion previous = Quaternion.identity;
+					for (int frameIndex = 0; frameIndex < asset.frameCount; frameIndex++)
+					{
+						cancellationToken.ThrowIfCancellationRequested();
+						Quaternion rotation = driven.Value < 0
+							? asset.pelvisRotations[frameIndex]
+							: asset.boneRotations[frameIndex * asset.boneCount + driven.Value];
+						if (frameIndex > 0 && Quaternion.Dot(previous, rotation) < 0f)
+						{
+							rotation = new Quaternion(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
+						}
+						rotations[frameIndex] = rotation;
+						previous = rotation;
+					}
+
+					SetLocalRotationCurves(clip, path, rotations, asset.fps, cancellationToken);
+				}
+
+				clip.EnsureQuaternionContinuity();
+				cancellationToken.ThrowIfCancellationRequested();
+				return clip;
+			}
+			catch
+			{
+				UnityEngine.Object.DestroyImmediate(clip);
+				throw;
+			}
 		}
 
 		private static HumanoidClipPair RecordHumanoidVariants(DhmgsMotionAsset asset, DhmgsRigDriver player,
-			GameObject instance, Avatar avatar)
+			GameObject instance, Avatar avatar, CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			Animator animator = instance.GetComponentInChildren<Animator>(true);
 			if (animator == null || animator.avatar == null || !animator.avatar.isValid || !animator.avatar.isHuman)
 			{
@@ -195,6 +283,7 @@ namespace Mnnh.Dhmgs.Editor
 
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				float time = frameIndex * frameDuration;
 				Vector3 relativePelvisPosition = asset.pelvisPositions[frameIndex] - firstPelvisPosition;
 
@@ -228,37 +317,121 @@ namespace Mnnh.Dhmgs.Editor
 				rootMotionPositionZ[frameIndex] = new Keyframe(time, bodyPosition.z);
 			}
 
-			AnimationClip inPlaceClip = CreateHumanoidClip(asset.fps,
-				inPlacePositionX, inPlacePositionY, inPlacePositionZ,
-				rootRotationX, rootRotationY, rootRotationZ, rootRotationW, muscleKeyframes, true);
-			AnimationClip rootMotionClip = CreateHumanoidClip(asset.fps,
-				rootMotionPositionX, rootMotionPositionY, rootMotionPositionZ,
-				rootRotationX, rootRotationY, rootRotationZ, rootRotationW, muscleKeyframes, false);
-
-			return new HumanoidClipPair { inPlace = inPlaceClip, rootMotion = rootMotionClip };
+			AnimationClip inPlaceClip = null;
+			AnimationClip rootMotionClip = null;
+			try
+			{
+				inPlaceClip = CreateHumanoidClip(asset.fps,
+					inPlacePositionX, inPlacePositionY, inPlacePositionZ,
+					rootRotationX, rootRotationY, rootRotationZ, rootRotationW,
+					muscleKeyframes, true, cancellationToken);
+				rootMotionClip = CreateHumanoidClip(asset.fps,
+					rootMotionPositionX, rootMotionPositionY, rootMotionPositionZ,
+					rootRotationX, rootRotationY, rootRotationZ, rootRotationW,
+					muscleKeyframes, false, cancellationToken);
+				cancellationToken.ThrowIfCancellationRequested();
+				return new HumanoidClipPair { inPlace = inPlaceClip, rootMotion = rootMotionClip };
+			}
+			catch
+			{
+				if (inPlaceClip != null)
+				{
+					UnityEngine.Object.DestroyImmediate(inPlaceClip);
+				}
+				if (rootMotionClip != null)
+				{
+					UnityEngine.Object.DestroyImmediate(rootMotionClip);
+				}
+				throw;
+			}
 		}
 
 		private static AnimationClip CreateHumanoidClip(float frameRate,
 			Keyframe[] positionX, Keyframe[] positionY, Keyframe[] positionZ,
 			Keyframe[] rotationX, Keyframe[] rotationY, Keyframe[] rotationZ, Keyframe[] rotationW,
-			Keyframe[][] muscleKeyframes, bool inPlace)
+			Keyframe[][] muscleKeyframes, bool inPlace, CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			AnimationClip clip = new AnimationClip { frameRate = frameRate };
-			SetAnimatorCurve(clip, "RootT.x", positionX);
-			SetAnimatorCurve(clip, "RootT.y", positionY);
-			SetAnimatorCurve(clip, "RootT.z", positionZ);
-			SetAnimatorCurve(clip, "RootQ.x", rotationX);
-			SetAnimatorCurve(clip, "RootQ.y", rotationY);
-			SetAnimatorCurve(clip, "RootQ.z", rotationZ);
-			SetAnimatorCurve(clip, "RootQ.w", rotationW);
-			for (int muscleIndex = 0; muscleIndex < muscleKeyframes.Length; muscleIndex++)
+			try
 			{
-				SetAnimatorCurve(clip, MuscleCurveProperty(HumanTrait.MuscleName[muscleIndex]), muscleKeyframes[muscleIndex]);
-			}
+				SetAnimatorCurve(clip, "RootT.x", positionX);
+				SetAnimatorCurve(clip, "RootT.y", positionY);
+				SetAnimatorCurve(clip, "RootT.z", positionZ);
+				SetAnimatorCurve(clip, "RootQ.x", rotationX);
+				SetAnimatorCurve(clip, "RootQ.y", rotationY);
+				SetAnimatorCurve(clip, "RootQ.z", rotationZ);
+				SetAnimatorCurve(clip, "RootQ.w", rotationW);
+				for (int muscleIndex = 0; muscleIndex < muscleKeyframes.Length; muscleIndex++)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					SetAnimatorCurve(clip, MuscleCurveProperty(HumanTrait.MuscleName[muscleIndex]), muscleKeyframes[muscleIndex]);
+				}
 
-			clip.EnsureQuaternionContinuity();
-			ConfigureRootTransform(clip, inPlace);
-			return clip;
+				clip.EnsureQuaternionContinuity();
+				ConfigureRootTransform(clip, inPlace);
+				cancellationToken.ThrowIfCancellationRequested();
+				return clip;
+			}
+			catch
+			{
+				UnityEngine.Object.DestroyImmediate(clip);
+				throw;
+			}
+		}
+
+		private static void SetLocalRotationCurves(
+			AnimationClip clip,
+			string path,
+			Quaternion[] rotations,
+			float fps,
+			CancellationToken cancellationToken)
+		{
+			SetTransformCurve(clip, path, "m_LocalRotation.x",
+				CreateLinearKeys(rotations, value => value.x, fps, cancellationToken), cancellationToken);
+			SetTransformCurve(clip, path, "m_LocalRotation.y",
+				CreateLinearKeys(rotations, value => value.y, fps, cancellationToken), cancellationToken);
+			SetTransformCurve(clip, path, "m_LocalRotation.z",
+				CreateLinearKeys(rotations, value => value.z, fps, cancellationToken), cancellationToken);
+			SetTransformCurve(clip, path, "m_LocalRotation.w",
+				CreateLinearKeys(rotations, value => value.w, fps, cancellationToken), cancellationToken);
+		}
+
+		private static Keyframe[] CreateLinearKeys(
+			Quaternion[] rotations,
+			Func<Quaternion, float> component,
+			float fps,
+			CancellationToken cancellationToken)
+		{
+			Keyframe[] keys = new Keyframe[rotations.Length];
+			float frameDuration = 1f / fps;
+			for (int index = 0; index < rotations.Length; index++)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				float value = component(rotations[index]);
+				float inTangent = index > 0
+					? (value - component(rotations[index - 1])) / frameDuration
+					: index + 1 < rotations.Length
+						? (component(rotations[index + 1]) - value) / frameDuration
+						: 0f;
+				float outTangent = index + 1 < rotations.Length
+					? (component(rotations[index + 1]) - value) / frameDuration
+					: inTangent;
+				keys[index] = new Keyframe(index * frameDuration, value, inTangent, outTangent);
+			}
+			return keys;
+		}
+
+		private static void SetTransformCurve(
+			AnimationClip clip,
+			string path,
+			string property,
+			Keyframe[] keys,
+			CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			EditorCurveBinding binding = EditorCurveBinding.FloatCurve(path, typeof(Transform), property);
+			AnimationUtility.SetEditorCurve(clip, binding, new AnimationCurve(keys));
 		}
 
 		private static bool TryGetLowestFootBottomY(Animator animator, out float groundY)

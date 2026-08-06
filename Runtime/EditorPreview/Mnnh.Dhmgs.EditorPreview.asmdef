@@ -1,0 +1,19 @@
+{
+  "name": "Mnnh.Dhmgs.EditorPreview",
+  "rootNamespace": "Mnnh.Dhmgs",
+  "references": [
+    "Mnnh.Dhmgs.Runtime",
+    "UnityEngine.VideoModule"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "UNITY_EDITOR"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

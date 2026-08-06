@@ -14,6 +14,15 @@ namespace Mnnh.Dhmgs
 	/// </summary>
 	public sealed class DhmgsCameraOverlay : MonoBehaviour
 	{
+		private sealed class VideoPreparation
+		{
+			public VideoPlayer Player;
+			public VideoPlayer.EventHandler PreparedHandler;
+			public VideoPlayer.ErrorEventHandler ErrorHandler;
+			public bool IsFinished;
+			public bool Succeeded;
+		}
+
 		[SerializeField] private Camera _camera;
 		[SerializeField] private VideoPlayer _videoPlayer;
 		[Tooltip("쿼드 depth(카메라 앞 거리). 0이면 아바타 뒤로 자동(배경처럼 깔림).")]
@@ -26,9 +35,9 @@ namespace Mnnh.Dhmgs
 		[SerializeField] private string _surfaceLayer = "";
 
 		private DhmgsVideoSurface _surface;
+		private VideoPreparation _preparation;
 		private Rect _backupRect;
 		private bool _backedUp;
-		private bool _prepareSucceeded;
 
 		/// <summary>
 		/// 오버레이 활성화. 영상 준비 성공 시 onReady(영상 동기 클럭). 오버레이 불가/영상 실패 시 onReady(null)
@@ -36,6 +45,7 @@ namespace Mnnh.Dhmgs
 		/// </summary>
 		public IEnumerator Activate(DhmgsMotionAsset asset, string videoPath, Action<IDhmgsPlaybackClock> onReady)
 		{
+			CancelPreparation();
 			Camera cam = ResolveCamera();
 			if (cam == null || asset == null || !asset.HasProjection || string.IsNullOrEmpty(videoPath) || _videoPlayer == null)
 			{
@@ -62,8 +72,9 @@ namespace Mnnh.Dhmgs
 			_surface.SetAlpha(_videoAlpha);
 			_surface.SetVisible(true);
 
-			yield return PrepareVideo(videoPath);
-			if (!_prepareSucceeded)
+			VideoPreparation preparation = new VideoPreparation();
+			yield return PrepareVideo(videoPath, preparation);
+			if (!preparation.Succeeded)
 			{
 				// 영상 준비 실패 → 오버레이 접고 폴백(아바타는 RuntimeUI가 fps 시계로 재생).
 				_surface.SetVisible(false);
@@ -79,6 +90,7 @@ namespace Mnnh.Dhmgs
 		/// <summary>오버레이 해제: 쿼드 숨김 + 영상 정지 + 카메라 projection/aspect/rect 복원.</summary>
 		public void Deactivate()
 		{
+			CancelPreparation();
 			if (_surface != null)
 			{
 				_surface.SetVisible(false);
@@ -118,10 +130,6 @@ namespace Mnnh.Dhmgs
 			if (_camera == null)
 			{
 				_camera = GetComponent<Camera>();
-			}
-			if (_camera == null)
-			{
-				_camera = Camera.main;
 			}
 			return _camera;
 		}
@@ -206,36 +214,125 @@ namespace Mnnh.Dhmgs
 			_surface = go.AddComponent<DhmgsVideoSurface>();
 		}
 
-		private IEnumerator PrepareVideo(string filePath)
+		/// <summary>
+		/// Cancels an in-flight VideoPlayer preparation and releases all event subscriptions.
+		/// The activation coroutine observes the cancellation as a failed preparation.
+		/// </summary>
+		public void CancelPreparation()
 		{
-			_prepareSucceeded = false;
+			VideoPreparation preparation = _preparation;
+			if (preparation == null)
+			{
+				return;
+			}
+
+			_preparation = null;
+			preparation.Succeeded = false;
+			preparation.IsFinished = true;
+			UnsubscribePreparation(preparation);
+			if (preparation.Player != null)
+			{
+				preparation.Player.Stop();
+			}
+		}
+
+		private static void UnsubscribePreparation(VideoPreparation preparation)
+		{
+			VideoPlayer player = preparation.Player;
+			if (player != null)
+			{
+				if (preparation.PreparedHandler != null)
+				{
+					player.prepareCompleted -= preparation.PreparedHandler;
+				}
+				if (preparation.ErrorHandler != null)
+				{
+					player.errorReceived -= preparation.ErrorHandler;
+				}
+			}
+
+			preparation.PreparedHandler = null;
+			preparation.ErrorHandler = null;
+		}
+
+		private void OnDestroy()
+		{
+			Deactivate();
+			DestroySurface();
+		}
+
+		private void DestroySurface()
+		{
+			if (_surface == null)
+			{
+				return;
+			}
+
+			GameObject surfaceObject = _surface.gameObject;
+			_surface = null;
+			if (surfaceObject == null)
+			{
+				return;
+			}
+
+			if (Application.isPlaying)
+			{
+				Destroy(surfaceObject);
+			}
+			else
+			{
+				DestroyImmediate(surfaceObject);
+			}
+		}
+
+		private IEnumerator PrepareVideo(string filePath, VideoPreparation preparation)
+		{
+			CancelPreparation();
+			preparation.Player = _videoPlayer;
+			_preparation = preparation;
 			_videoPlayer.source = VideoSource.Url;
 			_videoPlayer.url = filePath;
 			_videoPlayer.isLooping = _loop;
 			_videoPlayer.playOnAwake = false;
 
-			bool prepared = false;
-			bool errored = false;
 			void OnPrepared(VideoPlayer vp)
 			{
-				prepared = true;
+				preparation.Succeeded = true;
+				preparation.IsFinished = true;
+				UnsubscribePreparation(preparation);
 			}
 			void OnError(VideoPlayer vp, string message)
 			{
-				errored = true;
+				preparation.Succeeded = false;
+				preparation.IsFinished = true;
+				UnsubscribePreparation(preparation);
 				Debug.LogError($"[DHMGS] 영상 prepare 실패: {message}");
 			}
 
-			_videoPlayer.prepareCompleted += OnPrepared;
-			_videoPlayer.errorReceived += OnError;
-			_videoPlayer.Prepare();
-			while (!prepared && !errored)
+			preparation.PreparedHandler = OnPrepared;
+			preparation.ErrorHandler = OnError;
+			_videoPlayer.prepareCompleted += preparation.PreparedHandler;
+			_videoPlayer.errorReceived += preparation.ErrorHandler;
+			try
+			{
+				_videoPlayer.Prepare();
+			}
+			catch (Exception exception)
+			{
+				Debug.LogException(exception, this);
+				preparation.Succeeded = false;
+				preparation.IsFinished = true;
+				UnsubscribePreparation(preparation);
+			}
+			while (!preparation.IsFinished)
 			{
 				yield return null;
 			}
-			_videoPlayer.prepareCompleted -= OnPrepared;
-			_videoPlayer.errorReceived -= OnError;
-			_prepareSucceeded = prepared && !errored;
+			UnsubscribePreparation(preparation);
+			if (ReferenceEquals(_preparation, preparation))
+			{
+				_preparation = null;
+			}
 		}
 	}
 }

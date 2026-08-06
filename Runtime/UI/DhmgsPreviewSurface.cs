@@ -18,6 +18,15 @@ namespace Mnnh.Dhmgs
 		public Transform CameraTransform => _camera != null ? _camera.transform : null;
 		public bool IsValid => _camera != null;
 
+		/// <summary>소유자의 활성 상태에 맞춰 생성된 카메라만 켜고 끈다.</summary>
+		public void SetEnabled(bool enabled)
+		{
+			if (_camera != null)
+			{
+				_camera.enabled = enabled;
+			}
+		}
+
 		/// <summary>카메라/RT/출력 생성. 이미 만들어졌으면 무시.</summary>
 		public void Create(string name, RawImage output, int width, int height, LayerMask cullingMask,
 			float fieldOfView, float nearClip, float farClip, Color background)
@@ -51,21 +60,48 @@ namespace Mnnh.Dhmgs
 		/// <summary>출력 해제 + 카메라/RT 파괴.</summary>
 		public void Destroy()
 		{
-			if (_output != null && _renderTexture != null && _output.texture == _renderTexture)
+			RawImage output = _output;
+			Camera camera = _camera;
+			RenderTexture renderTexture = _renderTexture;
+
+			_output = null;
+			_camera = null;
+			_renderTexture = null;
+
+			if (output != null && renderTexture != null && output.texture == renderTexture)
 			{
-				_output.texture = null;
+				output.texture = null;
 			}
-			if (_camera != null)
+			if (camera != null)
 			{
-				_camera.targetTexture = null;
-				Object.Destroy(_camera.gameObject);
-				_camera = null;
+				camera.enabled = false;
+				camera.targetTexture = null;
+				DestroyObject(camera.gameObject);
 			}
-			if (_renderTexture != null)
+			if (renderTexture != null)
 			{
-				_renderTexture.Release();
-				Object.Destroy(_renderTexture);
-				_renderTexture = null;
+				if (renderTexture.IsCreated())
+				{
+					renderTexture.Release();
+				}
+				DestroyObject(renderTexture);
+			}
+		}
+
+		private static void DestroyObject(Object value)
+		{
+			if (value == null)
+			{
+				return;
+			}
+
+			if (Application.isPlaying)
+			{
+				Object.Destroy(value);
+			}
+			else
+			{
+				Object.DestroyImmediate(value);
 			}
 		}
 	}

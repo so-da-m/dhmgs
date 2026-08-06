@@ -1,82 +1,94 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 using Mnnh.Dhmgs;
 
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs.Samples
 {
 	/// <summary>
-	/// Canvas UI for runtime playback plus an Editor-registered Attempt ID import gateway.
-	/// The import gateway is absent from Player builds; already imported assets remain playable.
+	/// Compact Canvas surface matching the original DHMGS workflow: Attempt ID Fetch,
+	/// rig/clothes selection, opacity, speed, video opacity, and newest-first logging.
+	/// Downloading and baking are supplied by an Editor-only gateway.
 	/// </summary>
 	public sealed class DhmgsFullDemoController : MonoBehaviour
 	{
+		private const int MaxLogLines = 12;
+
 		[SerializeField] private DhmgsMotionPlayer _player;
-		[FormerlySerializedAs("_motion")]
 		[SerializeField] private DhmgsMotionAsset _bundledMotion;
 		[SerializeField] private bool _playOnStart = true;
 		[SerializeField] private bool _loop = true;
 		[SerializeField] private string _defaultBaseUrl = "http://192.168.1.128:8090";
+		[SerializeField] private Camera _previewCamera;
+		[SerializeField] private DhmgsFixedAvatarCamera _bakedPreviewCamera;
 
-		[Header("Editor Import")]
-		[SerializeField] private InputField _baseUrlInput;
+		[Header("Fetch")]
 		[SerializeField] private InputField _attemptIdInput;
-		[SerializeField] private Button _importAndPlayButton;
+		[SerializeField] private Button _fetchButton;
 		[SerializeField] private Slider _importProgress;
-		[SerializeField] private Text _importStatusLabel;
+		[SerializeField] private Text _serverLabel;
+		[SerializeField] private Text _operationStatusLabel;
+		[SerializeField] private Text _logLabel;
 
-		[Header("Playback")]
-		[SerializeField] private Button _bundledMotionButton;
-		[SerializeField] private Button _playButton;
-		[SerializeField] private Button _stopButton;
-		[SerializeField] private Button _previousAvatarButton;
-		[SerializeField] private Button _nextAvatarButton;
-		[SerializeField] private Text _motionLabel;
-		[SerializeField] private Text _avatarLabel;
+		[Header("Playback Controls")]
+		[SerializeField] private Dropdown _avatarDropdown;
+		[SerializeField] private Dropdown _clothesDropdown;
+		[SerializeField] private Slider _avatarOpacitySlider;
+		[SerializeField] private Slider _clothesOpacitySlider;
+		[SerializeField] private Slider _videoOpacitySlider;
 		[SerializeField] private Slider _speedSlider;
-		[SerializeField] private Text _speedLabel;
+		[SerializeField] private Text _avatarOpacityValue;
+		[SerializeField] private Text _clothesOpacityValue;
+		[SerializeField] private Text _videoOpacityValue;
+		[SerializeField] private Text _speedValue;
 		[SerializeField] private Text _playbackStatusLabel;
 
+		private readonly List<string> _logLines = new List<string>();
 		private DhmgsMotionAsset _activeMotion;
-		private int _avatarIndex;
-		private float _speed = 1f;
 		private bool _importing;
 		private CancellationTokenSource _importCancellation;
+		private DhmgsSampleImportContext _importContext;
+		private int _operationVersion;
+
+		private void Awake()
+		{
+			_importContext = new DhmgsSampleImportContext(
+				this,
+				_player,
+				_previewCamera,
+				_bakedPreviewCamera);
+		}
 
 		private void OnEnable()
 		{
-			_importAndPlayButton?.onClick.AddListener(ImportAndPlay);
-			_bundledMotionButton?.onClick.AddListener(UseBundledMotion);
-			_playButton?.onClick.AddListener(Play);
-			_stopButton?.onClick.AddListener(Stop);
-			_previousAvatarButton?.onClick.AddListener(SelectPreviousAvatar);
-			_nextAvatarButton?.onClick.AddListener(SelectNextAvatar);
-			_speedSlider?.onValueChanged.AddListener(ApplySpeed);
+			_fetchButton?.onClick.AddListener(Fetch);
+			_avatarDropdown?.onValueChanged.AddListener(OnAvatarChanged);
+			_clothesDropdown?.onValueChanged.AddListener(OnClothesChanged);
+			_avatarOpacitySlider?.onValueChanged.AddListener(OnAvatarOpacityChanged);
+			_clothesOpacitySlider?.onValueChanged.AddListener(OnClothesOpacityChanged);
+			_videoOpacitySlider?.onValueChanged.AddListener(OnVideoOpacityChanged);
+			_speedSlider?.onValueChanged.AddListener(OnSpeedChanged);
 		}
 
 		private void Start()
 		{
 			_activeMotion = _bundledMotion;
-			if (_baseUrlInput != null && string.IsNullOrWhiteSpace(_baseUrlInput.text))
+			if (_serverLabel != null)
 			{
-				_baseUrlInput.SetTextWithoutNotify(_defaultBaseUrl);
-			}
-			if (_speedSlider != null)
-			{
-				_speedSlider.SetValueWithoutNotify(_speed);
+				_serverLabel.text = $"Server  {_defaultBaseUrl}";
 			}
 
-			InitializeAvatar();
-			RefreshMotionLabel();
-			ApplySpeed(_speed);
-			ConfigureImportAvailability();
-			if (_playOnStart)
+			BindSelectors();
+			RefreshControlValues();
+			ConfigureEditorControls();
+			if (_playOnStart && _activeMotion != null &&
+				Play(_activeMotion, new DhmgsRealtimeClock(_loop)))
 			{
-				Play();
+				AppendLog($"Bundled motion {_activeMotion.attemptId} is playing.");
 			}
 		}
 
@@ -95,137 +107,263 @@ namespace Mnnh.Dhmgs.Samples
 
 			string state = _player.IsPlaying ? "Playing" : "Stopped";
 			_playbackStatusLabel.text =
-				$"{state}  |  Frame {_player.CurrentFrame + 1}/{_activeMotion.frameCount}  |  {_activeMotion.fps:F2} fps";
+				$"{state}  |  {_activeMotion.attemptId}  |  Frame {_player.CurrentFrame + 1}/{_activeMotion.frameCount}";
 		}
 
 		private void OnDisable()
 		{
-			_importAndPlayButton?.onClick.RemoveListener(ImportAndPlay);
-			_bundledMotionButton?.onClick.RemoveListener(UseBundledMotion);
-			_playButton?.onClick.RemoveListener(Play);
-			_stopButton?.onClick.RemoveListener(Stop);
-			_previousAvatarButton?.onClick.RemoveListener(SelectPreviousAvatar);
-			_nextAvatarButton?.onClick.RemoveListener(SelectNextAvatar);
-			_speedSlider?.onValueChanged.RemoveListener(ApplySpeed);
+			_fetchButton?.onClick.RemoveListener(Fetch);
+			_avatarDropdown?.onValueChanged.RemoveListener(OnAvatarChanged);
+			_clothesDropdown?.onValueChanged.RemoveListener(OnClothesChanged);
+			_avatarOpacitySlider?.onValueChanged.RemoveListener(OnAvatarOpacityChanged);
+			_clothesOpacitySlider?.onValueChanged.RemoveListener(OnClothesOpacityChanged);
+			_videoOpacitySlider?.onValueChanged.RemoveListener(OnVideoOpacityChanged);
+			_speedSlider?.onValueChanged.RemoveListener(OnSpeedChanged);
+			_operationVersion++;
+			_importing = false;
 			_importCancellation?.Cancel();
-			_importCancellation?.Dispose();
 			_importCancellation = null;
+			DhmgsFullDemoImportGateway.StopPreview(_importContext);
 		}
 
-		public void Play()
+		public void Fetch()
 		{
-			if (_player == null || _activeMotion == null || !_activeMotion.IsValid)
-			{
-				SetImportStatus("Assign or import a valid motion asset.");
-				return;
-			}
-
-			_player.Play(_activeMotion, new DhmgsRealtimeClock(_loop));
-			ApplySpeed(_speedSlider != null ? _speedSlider.value : _speed);
+			FetchAndPlay();
 		}
 
-		public void Stop()
-		{
-			_player?.Stop();
-		}
-
-		private async void ImportAndPlay()
+		private async void FetchAndPlay()
 		{
 			if (_importing)
 			{
+				AppendLog("A Fetch operation is already running.");
 				return;
 			}
 			if (!DhmgsFullDemoImportGateway.IsAvailable)
 			{
-				SetImportStatus("Attempt ID import is available in the Unity Editor only.");
+				AppendLog("Fetch is available in the Unity Editor only.");
 				return;
 			}
 			if (_attemptIdInput == null || !int.TryParse(_attemptIdInput.text, out int attemptId) || attemptId < 0)
 			{
-				SetImportStatus("Attempt ID must be a non-negative integer.");
+				AppendLog("[Error] Attempt ID must be a non-negative integer.");
 				return;
 			}
 
-			string baseUrl = _baseUrlInput != null ? _baseUrlInput.text.Trim() : _defaultBaseUrl;
-			if (string.IsNullOrWhiteSpace(baseUrl))
-			{
-				SetImportStatus("Base URL is required.");
-				return;
-			}
-
+			int operation = ++_operationVersion;
+			CancellationTokenSource cancellation = new CancellationTokenSource();
+			_importCancellation = cancellation;
 			_importing = true;
-			SetImportInteractable(false);
-			SetImportProgress(0f, $"Downloading attempt {attemptId}...");
-			_importCancellation = new CancellationTokenSource();
+			SetFetchInteractable(false);
+			SetProgress(0f, $"[{attemptId}] Downloading...");
+			AppendLog($"[{attemptId}] Fetch started.");
 			IProgress<DhmgsSampleImportProgress> progress =
-				new Progress<DhmgsSampleImportProgress>(OnImportProgress);
+				new Progress<DhmgsSampleImportProgress>(value =>
+				{
+					if (OwnsOperation(operation, cancellation))
+					{
+						OnImportProgress(value);
+					}
+				});
 
 			try
 			{
-				DhmgsMotionAsset imported = await DhmgsFullDemoImportGateway.ImportAndSaveAsync(
-					baseUrl,
+				DhmgsSampleImportResult imported = await DhmgsFullDemoImportGateway.ImportAndSaveAsync(
+					_importContext,
+					_defaultBaseUrl,
 					attemptId,
 					progress,
-					_importCancellation.Token);
-				if (this == null)
+					cancellation.Token);
+				if (!OwnsOperation(operation, cancellation))
 				{
 					return;
 				}
 
-				_activeMotion = imported;
-				RefreshMotionLabel();
-				SetImportProgress(1f, $"Attempt {attemptId} imported and saved. Playback started.");
-				Play();
+				_activeMotion = imported.Motion;
+				if (!Play(imported.Motion, imported.Clock ?? new DhmgsRealtimeClock(_loop)))
+				{
+					SetProgress(0f, $"[{attemptId}] Imported but could not play.");
+					return;
+				}
+				SetProgress(1f, $"[{attemptId}] Imported, baked, and playing.");
+				AppendSummary(imported.Summary);
+				AppendLog(imported.HasVideoPreview
+					? $"[{attemptId}] Video preview synchronized."
+					: $"[{attemptId}] No preview video; realtime clock in use.");
 			}
 			catch (OperationCanceledException)
 			{
-				SetImportStatus("Import cancelled.");
+				if (OwnsOperation(operation, cancellation, allowCancelled: true))
+				{
+					AppendLog($"[{attemptId}] Fetch cancelled.");
+				}
 			}
 			catch (Exception exception)
 			{
-				Debug.LogException(exception, this);
-				SetImportStatus(exception.Message);
+				if (OwnsOperation(operation, cancellation, allowCancelled: true))
+				{
+					Debug.LogException(exception, this);
+					AppendLog($"[Error] [{attemptId}] {exception.Message}");
+					SetProgress(0f, $"[{attemptId}] Failed.");
+				}
 			}
 			finally
 			{
-				_importing = false;
-				SetImportInteractable(DhmgsFullDemoImportGateway.IsAvailable);
-				_importCancellation?.Dispose();
-				_importCancellation = null;
+				cancellation.Dispose();
+				if (this != null && operation == _operationVersion &&
+					ReferenceEquals(_importCancellation, cancellation))
+				{
+					_importing = false;
+					_importCancellation = null;
+					SetFetchInteractable(DhmgsFullDemoImportGateway.IsAvailable);
+				}
 			}
 		}
 
-		private void UseBundledMotion()
+		private bool OwnsOperation(
+			int operation,
+			CancellationTokenSource cancellation,
+			bool allowCancelled = false)
 		{
-			_activeMotion = _bundledMotion;
-			RefreshMotionLabel();
-			SetImportStatus("Using the bundled sample motion.");
-			Play();
+			return this != null && isActiveAndEnabled && operation == _operationVersion &&
+				ReferenceEquals(_importCancellation, cancellation) &&
+				(allowCancelled || !cancellation.IsCancellationRequested);
 		}
 
-		private void ConfigureImportAvailability()
+		private bool Play(DhmgsMotionAsset motion, IDhmgsPlaybackClock clock)
+		{
+			if (_player == null || motion == null || !motion.IsValid)
+			{
+				AppendLog("[Error] A valid motion and player are required.");
+				return false;
+			}
+
+			_player.Play(motion, clock);
+			OnSpeedChanged(_speedSlider != null ? _speedSlider.value : 1f);
+			return _player.IsPlaying;
+		}
+
+		private void BindSelectors()
+		{
+			if (_player == null)
+			{
+				return;
+			}
+
+			BindDropdown(_avatarDropdown, _player.AvatarCount, _player.AvatarName, _player.ActiveAvatar);
+			BindDropdown(_clothesDropdown, _player.ClothesCount, _player.ClothesName, _player.ActiveClothes);
+			if (_clothesDropdown != null)
+			{
+				_clothesDropdown.interactable = _player.ClothesCount > 0;
+			}
+			if (_clothesOpacitySlider != null)
+			{
+				_clothesOpacitySlider.interactable = _player.ClothesCount > 0;
+			}
+		}
+
+		private static void BindDropdown(
+			Dropdown dropdown,
+			int count,
+			Func<int, string> nameAt,
+			int activeIndex)
+		{
+			if (dropdown == null)
+			{
+				return;
+			}
+
+			List<string> options = new List<string> { "None" };
+			for (int index = 0; index < count; index++)
+			{
+				options.Add(nameAt(index));
+			}
+			dropdown.ClearOptions();
+			dropdown.AddOptions(options);
+			dropdown.SetValueWithoutNotify(Mathf.Clamp(activeIndex + 1, 0, options.Count - 1));
+			dropdown.RefreshShownValue();
+		}
+
+		private void OnAvatarChanged(int value)
+		{
+			_player?.SetAvatarIndex(value - 1);
+			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
+		}
+
+		private void OnClothesChanged(int value)
+		{
+			_player?.SetClothesIndex(value - 1);
+			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
+		}
+
+		private void OnAvatarOpacityChanged(float value)
+		{
+			ApplyOpacity(_player?.ActiveAvatarDriver, value);
+			SetValue(_avatarOpacityValue, value);
+		}
+
+		private void OnClothesOpacityChanged(float value)
+		{
+			ApplyOpacity(_player?.ActiveClothesDriver, value);
+			SetValue(_clothesOpacityValue, value);
+		}
+
+		private void OnVideoOpacityChanged(float value)
+		{
+			DhmgsFullDemoImportGateway.SetVideoOpacity(_importContext, value);
+			SetValue(_videoOpacityValue, value);
+		}
+
+		private void OnSpeedChanged(float value)
+		{
+			float speed = Mathf.Clamp(value, 0.25f, 2f);
+			_player?.SetPlaybackSpeed(speed);
+			if (_speedValue != null)
+			{
+				_speedValue.text = $"{speed:F2}x";
+			}
+		}
+
+		private static void ApplyOpacity(DhmgsRigDriver driver, float value)
+		{
+			DhmgsSkinOpacity opacity = driver != null ? driver.GetComponent<DhmgsSkinOpacity>() : null;
+			opacity?.SetOpacity(value);
+		}
+
+		private static void SetValue(Text label, float value)
+		{
+			if (label != null)
+			{
+				label.text = value.ToString("F2");
+			}
+		}
+
+		private void RefreshControlValues()
+		{
+			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
+			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
+			OnVideoOpacityChanged(_videoOpacitySlider != null ? _videoOpacitySlider.value : 1f);
+			OnSpeedChanged(_speedSlider != null ? _speedSlider.value : 1f);
+		}
+
+		private void ConfigureEditorControls()
 		{
 			bool available = DhmgsFullDemoImportGateway.IsAvailable;
-			SetImportInteractable(available);
-			SetImportProgress(0f, available
-				? "Enter an Attempt ID, then select Import & Play."
-				: "Attempt ID import is Editor-only. Bundled or serialized motions still play in builds.");
-		}
-
-		private void OnImportProgress(DhmgsSampleImportProgress progress)
-		{
-			SetImportProgress(progress.Value, progress.Status);
-		}
-
-		private void SetImportInteractable(bool interactable)
-		{
-			if (_importAndPlayButton != null)
+			SetFetchInteractable(available);
+			if (_videoOpacitySlider != null)
 			{
-				_importAndPlayButton.interactable = interactable;
+				_videoOpacitySlider.interactable =
+					available && DhmgsFullDemoImportGateway.SupportsVideoPreview(_importContext);
 			}
-			if (_baseUrlInput != null)
+			SetProgress(0f, available
+				? "Ready. Enter an Attempt ID and Fetch."
+				: "Fetch, baking, and video preview are Editor-only.");
+		}
+
+		private void SetFetchInteractable(bool interactable)
+		{
+			if (_fetchButton != null)
 			{
-				_baseUrlInput.interactable = interactable;
+				_fetchButton.interactable = interactable;
 			}
 			if (_attemptIdInput != null)
 			{
@@ -233,76 +371,52 @@ namespace Mnnh.Dhmgs.Samples
 			}
 		}
 
-		private void SetImportProgress(float value, string status)
+		private void OnImportProgress(DhmgsSampleImportProgress progress)
+		{
+			SetProgress(progress.Value, progress.Status);
+		}
+
+		private void SetProgress(float value, string status)
 		{
 			if (_importProgress != null)
 			{
 				_importProgress.SetValueWithoutNotify(Mathf.Clamp01(value));
 			}
-			SetImportStatus(status);
-		}
-
-		private void SetImportStatus(string status)
-		{
-			if (_importStatusLabel != null)
+			if (_operationStatusLabel != null)
 			{
-				_importStatusLabel.text = status;
+				_operationStatusLabel.text = status;
 			}
 		}
 
-		private void RefreshMotionLabel()
+		private void AppendSummary(string summary)
 		{
-			if (_motionLabel != null)
-			{
-				_motionLabel.text = _activeMotion != null
-					? $"Motion  {_activeMotion.attemptId}"
-					: "Motion  None";
-			}
-		}
-
-		private void InitializeAvatar()
-		{
-			if (_player == null || _player.AvatarCount == 0)
+			if (string.IsNullOrWhiteSpace(summary))
 			{
 				return;
 			}
 
-			_avatarIndex = Mathf.Clamp(_player.ActiveAvatar, 0, _player.AvatarCount - 1);
-			SelectAvatar(_avatarIndex);
+			string[] lines = summary.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+			foreach (string line in lines)
+			{
+				AppendLog(line);
+			}
 		}
 
-		private void SelectPreviousAvatar()
+		private void AppendLog(string message)
 		{
-			SelectAvatar(_avatarIndex - 1);
-		}
-
-		private void SelectNextAvatar()
-		{
-			SelectAvatar(_avatarIndex + 1);
-		}
-
-		private void SelectAvatar(int index)
-		{
-			if (_player == null || _player.AvatarCount == 0)
+			if (string.IsNullOrWhiteSpace(message))
 			{
 				return;
 			}
 
-			_avatarIndex = (index + _player.AvatarCount) % _player.AvatarCount;
-			_player.SetAvatarIndex(_avatarIndex);
-			if (_avatarLabel != null)
+			_logLines.Insert(0, message.Trim());
+			if (_logLines.Count > MaxLogLines)
 			{
-				_avatarLabel.text = $"Avatar  {_player.AvatarName(_avatarIndex)}";
+				_logLines.RemoveRange(MaxLogLines, _logLines.Count - MaxLogLines);
 			}
-		}
-
-		private void ApplySpeed(float speed)
-		{
-			_speed = Mathf.Clamp(speed, 0.25f, 2f);
-			_player?.SetPlaybackSpeed(_speed);
-			if (_speedLabel != null)
+			if (_logLabel != null)
 			{
-				_speedLabel.text = $"Speed  {_speed:F2}x";
+				_logLabel.text = string.Join("\n", _logLines);
 			}
 		}
 	}

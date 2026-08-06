@@ -17,7 +17,7 @@ namespace Mnnh.Dhmgs
 		[Tooltip("SMPL-X 본 계층 루트. 비우면 이 GameObject를 루트로 사용.")]
 		[SerializeField] private Transform _rigRoot;
 
-		[Tooltip("정합용 카메라. 비우면 Camera.main. 아바타를 이 카메라 상대로 배치해 영상에 투영 정합(translation은 카메라공간 값).")]
+		[Tooltip("Playback camera used to transform camera-space translation. If unassigned, translation is treated as world-space.")]
 		[SerializeField] private Camera _camera;
 
 		private readonly Dictionary<string, Transform> _bones = new Dictionary<string, Transform>();
@@ -41,7 +41,7 @@ namespace Mnnh.Dhmgs
 			BuildBones();
 		}
 
-		/// <summary>정합용 카메라 주입(컨트롤러가 활성 리그에 설정). 비우면 Camera.main 사용.</summary>
+		/// <summary>Assigns the camera used to transform camera-space motion. Null means world-space placement.</summary>
 		public void SetCamera(Camera camera)
 		{
 			_camera = camera;
@@ -82,7 +82,7 @@ namespace Mnnh.Dhmgs
 			// 따라서 pelvis 본의 카메라공간 목표 = (translation - restOffset). pelvis가 정확히 거기 오도록 루트를 역산한다.
 			if (_root != null)
 			{
-				Camera cam = _camera != null ? _camera : Camera.main;
+				Camera cam = _camera;
 				Vector3 pelvisCameraLocal = asset.pelvisPositions[frame] - _pelvisRestOffset;
 				if (cam != null)
 				{

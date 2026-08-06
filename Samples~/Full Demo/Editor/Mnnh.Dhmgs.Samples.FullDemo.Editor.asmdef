@@ -4,7 +4,11 @@
   "references": [
     "Mnnh.Dhmgs.Runtime",
     "Mnnh.Dhmgs.Editor",
-    "Mnnh.Dhmgs.Samples.FullDemo"
+    "Mnnh.Dhmgs.EditorPreview",
+    "Mnnh.Dhmgs.UI",
+    "Mnnh.Dhmgs.Samples.FullDemo",
+    "UnityEngine.AnimationModule",
+    "UnityEngine.VideoModule"
   ],
   "includePlatforms": [
     "Editor"

@@ -6,6 +6,7 @@
 |---|---:|---|
 | `Mnnh.Dhmgs.Runtime` | Yes | Motion data, SMPL-X rig application, playback clock and coordinator |
 | `Mnnh.Dhmgs.UI` | Optional | UI controls and avatar inspection view for imported motion |
+| `Mnnh.Dhmgs.EditorPreview` | No | Attach-safe Editor video overlay and synchronized video clock |
 | `Mnnh.Dhmgs.Editor` | No | HTTP/archive import, decoding, asset writing, clip baking and preview |
 | `Mnnh.Dhmgs.Editor.Tests` | No | Import contract tests |
 

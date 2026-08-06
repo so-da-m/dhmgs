@@ -3,6 +3,7 @@
   "rootNamespace": "Mnnh.Dhmgs.Samples",
   "references": [
     "Mnnh.Dhmgs.Runtime",
+    "Mnnh.Dhmgs.UI",
     "UnityEngine.UI"
   ],
   "includePlatforms": [],

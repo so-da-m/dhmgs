@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] - 2026-08-06
+
+### Added
+
+- Restored the two interactive upper-right and lower-right RenderTexture camera views with orbit, pan, and zoom.
+- Restored avatar/clothes dropdowns plus avatar, clothes, video, and playback-speed sliders.
+- Added automatic Generic clip baking with the bundled Neutral SMPL-X rig to the sample Fetch workflow.
+- Added Editor-only synchronized video preview when an imported attempt contains a video.
+
+### Changed
+
+- Returned the Full Demo to the compact legacy Attempt ID + Fetch workflow while retaining the current Canvas visual style.
+- Made Fetch download, save, bake, and immediately play in one operation again.
+- Replaced the old external X Bot/Humanoid lower preview dependency with a package-local Generic bake preview.
+- Kept all downloading, baking, and video code out of Player builds; existing motion playback and both RenderTexture views remain build-safe.
+- Exposed the saved Generic clip from `DhmgsAssetWriteResult` so Editor integrations can preview the exact asset they wrote.
+- Removed global camera/player/name searches from the sample preview path; every Editor operation now uses references owned by that Full Demo controller.
+- Reduced Generic clips to the rotations actually driven by DHMGS instead of recording every Transform property.
+
 ## [0.4.0] - 2026-08-06
 
 ### Added

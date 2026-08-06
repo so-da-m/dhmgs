@@ -103,11 +103,27 @@ namespace Mnnh.Dhmgs
 		{
 			if (_mesh != null)
 			{
-				Destroy(_mesh);
+				DestroyResource(_mesh);
 			}
 			if (_material != null)
 			{
-				Destroy(_material);
+				DestroyResource(_material);
+			}
+		}
+
+		private static void DestroyResource(Object value)
+		{
+			if (value == null)
+			{
+				return;
+			}
+			if (Application.isPlaying)
+			{
+				Destroy(value);
+			}
+			else
+			{
+				DestroyImmediate(value);
 			}
 		}
 	}
