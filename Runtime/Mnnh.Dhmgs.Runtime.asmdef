@@ -1,0 +1,20 @@
+{
+    "name": "Mnnh.Dhmgs.Runtime",
+    "rootNamespace": "Mnnh.Dhmgs",
+    "references": [
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "System.IO.Compression.dll",
+        "System.IO.Compression.FileSystem.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

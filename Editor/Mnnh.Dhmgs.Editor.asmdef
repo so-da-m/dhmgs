@@ -1,0 +1,19 @@
+{
+    "name": "Mnnh.Dhmgs.Editor",
+    "rootNamespace": "Mnnh.Dhmgs.Editor",
+    "references": [
+        "Mnnh.Dhmgs.Runtime",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

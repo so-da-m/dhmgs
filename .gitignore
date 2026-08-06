@@ -1,0 +1,14 @@
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+*.csproj
+*.sln
+*.slnx
+*.user

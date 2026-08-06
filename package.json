@@ -1,0 +1,26 @@
+{
+  "name": "com.mnnh.dhmgs",
+  "version": "0.1.0",
+  "displayName": "MNNH DHMGS",
+  "description": "Runtime and Editor tooling for downloading, baking, and playing DHMGS digital-human motion data.",
+  "unity": "6000.5",
+  "unityRelease": "1f1",
+  "license": "See LICENSE.md file",
+  "author": {
+    "name": "MNNH"
+  },
+  "keywords": [
+    "digital-human",
+    "motion",
+    "smpl-x"
+  ],
+  "dependencies": {
+    "com.unity.ugui": "2.5.0",
+    "com.unity.inputsystem": "1.19.0",
+    "com.unity.render-pipelines.universal": "17.5.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.director": "1.0.0",
+    "com.unity.modules.video": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  }
+}
