@@ -1,6 +1,6 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "displayName": "MNNH DHMGS",
   "description": "Editor-only DHMGS download, Generic baking, and video preview with build-safe SMPL-X playback.",
   "unity": "6000.5",
@@ -26,7 +26,7 @@
   "samples": [
     {
       "displayName": "Full Demo",
-      "description": "Use the compact Attempt ID Fetch workflow, avatar controls, and two interactive RenderTexture views with only package-owned SMPL-X base rigs.",
+      "description": "Use the compact Attempt ID Fetch workflow, avatar and clothes controls, and two auto-framed RenderTexture views with package-owned SMPL-X rigs.",
       "path": "Samples~/Full Demo"
     }
   ]

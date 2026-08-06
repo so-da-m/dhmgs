@@ -10,7 +10,7 @@ namespace Mnnh.Dhmgs
 	/// 인스턴스를 전용 레이어에 둬, 그 레이어만 비추는 FixedAvatarCamera 패널에만 보이게 한다(렌더/프레이밍은 그쪽 담당).
 	/// 클립은 에디터 임포트 산출물이며 재생 자체는 런타임 Playables를 사용한다.
 	/// </summary>
-	public sealed class DhmgsHumanoidPreview : MonoBehaviour, IDhmgsFramingTarget
+	public sealed class DhmgsHumanoidPreview : MonoBehaviour, IDhmgsFramingTarget, IDhmgsFramingBounds
 	{
 		[Header("아바타")]
 		[Tooltip("재생할 Humanoid 아바타 프리팹(Animator + Humanoid Avatar 필수). Fetch 시 1회 인스턴스화.")]
@@ -33,6 +33,13 @@ namespace Mnnh.Dhmgs
 
 		/// <summary>FixedAvatarCamera가 비출 기준 Transform(hips). 인스턴스화+재생 전이면 null.</summary>
 		public Transform Pivot => (_instance != null && _source != null) ? _pivot : null;
+
+		public bool TryGetFramingBounds(out Bounds bounds)
+		{
+			return _source != null && _instance != null
+				? DhmgsFramingBoundsUtility.TryCalculate(_instance.transform, out bounds)
+				: NoBounds(out bounds);
+		}
 
 		/// <summary>휴머노이드 클립을 같은 클럭으로 재생 시작. clip은 에디터 베이크 산출물(호출측이 가드).</summary>
 		public void Play(AnimationClip clip, IDhmgsPlaybackClock source, float fps)
@@ -144,6 +151,12 @@ namespace Mnnh.Dhmgs
 				_graph.Destroy();
 			}
 			_graphValid = false;
+		}
+
+		private static bool NoBounds(out Bounds bounds)
+		{
+			bounds = default;
+			return false;
 		}
 	}
 }

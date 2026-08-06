@@ -94,6 +94,8 @@ namespace Mnnh.Dhmgs.Editor
 
 		private static DhmgsMotionAsset WriteMotion(DhmgsMotionAsset source, string path)
 		{
+			string assetName = Path.GetFileNameWithoutExtension(path);
+			source.name = assetName;
 			DhmgsMotionAsset existing = AssetDatabase.LoadAssetAtPath<DhmgsMotionAsset>(path);
 			if (existing == null)
 			{
@@ -102,6 +104,7 @@ namespace Mnnh.Dhmgs.Editor
 			}
 
 			EditorUtility.CopySerialized(source, existing);
+			existing.name = assetName;
 			UnityEngine.Object.DestroyImmediate(source);
 			EditorUtility.SetDirty(existing);
 			return existing;

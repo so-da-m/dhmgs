@@ -13,6 +13,7 @@ namespace Mnnh.Dhmgs
 		private Camera _camera;
 		private RenderTexture _renderTexture;
 		private RawImage _output;
+		private Color _background;
 
 		public Camera Camera => _camera;
 		public Transform CameraTransform => _camera != null ? _camera.transform : null;
@@ -36,6 +37,7 @@ namespace Mnnh.Dhmgs
 				return;
 			}
 			_output = output;
+			_background = background;
 
 			_renderTexture = new RenderTexture(Mathf.Max(1, width), Mathf.Max(1, height), 24);
 			_renderTexture.name = $"{name}RT";
@@ -55,6 +57,21 @@ namespace Mnnh.Dhmgs
 			{
 				_output.texture = _renderTexture;
 			}
+			Clear();
+		}
+
+		/// <summary>Clears the owned RenderTexture without rendering a scene.</summary>
+		public void Clear()
+		{
+			if (_renderTexture == null)
+			{
+				return;
+			}
+
+			RenderTexture previous = RenderTexture.active;
+			RenderTexture.active = _renderTexture;
+			GL.Clear(true, true, _background);
+			RenderTexture.active = previous;
 		}
 
 		/// <summary>출력 해제 + 카메라/RT 파괴.</summary>
@@ -67,6 +84,7 @@ namespace Mnnh.Dhmgs
 			_output = null;
 			_camera = null;
 			_renderTexture = null;
+			_background = default;
 
 			if (output != null && renderTexture != null && output.texture == renderTexture)
 			{

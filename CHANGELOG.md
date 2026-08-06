@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.2] - 2026-08-06
+
+### Fixed
+
+- Replaced the Full Demo's raw FBX instances with the original package-local rig prefabs so skin materials and SMPL-X setup cannot drift.
+- Restored the lower panel's original baked-preview-only role and cleared it until a Fetch bake succeeds.
+- Added renderer-bounds auto-framing to both RenderTexture views so direct and baked subjects remain visible at the current panel size.
+- Kept auto-framed cameras centered on travelling motion and cleared stale frames when playback stops.
+- Corrected `Dhmgs_ClothTransparent` to reference the clothes shader.
+- Made skin and clothes shaders remain neutrally visible without scene lighting and stop writing depth at zero opacity.
+- Made saved motion object names match their `.asset` filenames.
+
+### Added
+
+- Included the original chat-garment clothes rig as a compact standalone prefab and native Mesh asset, without Git LFS.
+- Added the garment to the Full Demo clothes selector.
+
+### Changed
+
+- Switched opacity control to per-renderer `MaterialPropertyBlock` values so shared materials are no longer cloned or mutated.
+
 ## [0.5.1] - 2026-08-06
 
 ### Fixed

@@ -301,6 +301,7 @@ namespace Mnnh.Dhmgs.Samples
 		private void OnClothesChanged(int value)
 		{
 			_player?.SetClothesIndex(value - 1);
+			_directPreviewCamera?.Relock();
 			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
 		}
 

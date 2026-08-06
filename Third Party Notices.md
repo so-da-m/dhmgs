@@ -5,7 +5,7 @@
 ## SMPL-X for Unity
 
 - 위치: `Runtime/SMPLX/`
-- 포함 모델: `SmplxRig/Raw/SmplxFemale.fbx`, `SmplxMale.fbx`, `SmplxNeutral.fbx`
+- 포함 모델: `SmplxRig/Raw/SmplxFemale.fbx`, `SmplxMale.fbx`, `SmplxNeutral.fbx`, `SmplxRig/SmplxChatGarmentClothes.prefab` 및 그 standalone Mesh
 - 저작권: Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V.
 - 라이선스: `Runtime/SMPLX/LICENSE.md`
 - 원본 정보: `Runtime/SMPLX/README.md`
@@ -24,4 +24,4 @@
 
 ## 선택 콘텐츠
 
-`Assets/Mnnh.Dhmgs/Content`의 Pretendard 폰트, Mixamo 리그, 추가 SMPL-X/Kyra/의상 FBX, 장면 FBX에 대한 패키지 루트 라이선스 문서는 현재 준비되어 있지 않습니다. 릴리스에 선택한 항목만 권한과 고지 요건을 확인하십시오.
+`Assets/Mnnh.Dhmgs/Content`의 Pretendard 폰트, Mixamo 리그, 추가 SMPL-X/Kyra FBX, 장면 FBX에 대한 패키지 루트 라이선스 문서는 현재 준비되어 있지 않습니다. 릴리스에 선택한 항목만 권한과 고지 요건을 확인하십시오.

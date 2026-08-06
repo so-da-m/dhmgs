@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Dhmgs_ClothTransparent
-  m_Shader: {fileID: 4800000, guid: 45fabc5f96614ae4cba447201ef930e5, type: 3}
+  m_Shader: {fileID: 4800000, guid: 15c3c9acec5651a45af0019cf6f3d4ff, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

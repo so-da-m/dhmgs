@@ -5,34 +5,50 @@ using UnityEngine;
 namespace Mnnh.Dhmgs
 {
 	/// <summary>
-	/// 리그(아바타/의상) 피부 머티리얼의 투명도(_Opacity)를 조절. 머티리얼은 이미 적용돼 있다고 가정한다.
-	/// _Opacity 프로퍼티를 가진 셰이더면 무엇이든 동작하므로, 아바타와 의상이 서로 다른 셰이더여도
-	/// 프로퍼티 이름만 _Opacity로 같으면 동일하게 쓸 수 있다.
-	/// 이 컴포넌트가 붙은 GameObject 하위에서 SkinnedMeshRenderer를 찾으니 리그 프리팹 루트에 붙인다.
-	/// 머티리얼 인스턴스를 써서 공유 .mat 에셋의 영구 변경을 막고 리그별 개별 투명도를 지원한다.
+	/// Controls the package shaders' per-renderer _Opacity value without cloning or mutating
+	/// shared materials. Attach this component to the root that owns the skinned renderers.
 	/// </summary>
 	public sealed class DhmgsSkinOpacity : MonoBehaviour
 	{
-		private const string OpacityProperty = "_Opacity";
+		private readonly struct MaterialSlot
+		{
+			public MaterialSlot(Renderer renderer, int index)
+			{
+				Renderer = renderer;
+				Index = index;
+			}
 
-		private readonly List<Material> _materials = new List<Material>();
+			public Renderer Renderer { get; }
+			public int Index { get; }
+		}
+
+		private static readonly int OpacityProperty = Shader.PropertyToID("_Opacity");
+
+		private readonly List<MaterialSlot> _slots = new List<MaterialSlot>();
+		private readonly List<string> _inspectedMaterials = new List<string>();
+		private MaterialPropertyBlock _propertyBlock;
 		private bool _built;
 
-		/// <summary>0=완전 투명, 1=불투명.</summary>
+		/// <summary>0 is transparent and 1 is opaque.</summary>
 		public void SetOpacity(float opacity)
 		{
 			EnsureBuilt();
 			float alpha = Mathf.Clamp01(opacity);
-			foreach (Material material in _materials)
+			foreach (MaterialSlot slot in _slots)
 			{
-				if (material != null && material.HasProperty(OpacityProperty))
+				Renderer renderer = slot.Renderer;
+				if (renderer == null)
 				{
-					material.SetFloat(OpacityProperty, alpha);
+					continue;
 				}
+
+				_propertyBlock.Clear();
+				renderer.GetPropertyBlock(_propertyBlock, slot.Index);
+				_propertyBlock.SetFloat(OpacityProperty, alpha);
+				renderer.SetPropertyBlock(_propertyBlock, slot.Index);
 			}
 		}
 
-		// 하위 SkinnedMeshRenderer의 머티리얼 인스턴스를 1회 확보(렌더러가 인스턴스를 쓰게 됨 → 공유 에셋 보호).
 		private void EnsureBuilt()
 		{
 			if (_built)
@@ -40,37 +56,37 @@ namespace Mnnh.Dhmgs
 				return;
 			}
 			_built = true;
+			_propertyBlock = new MaterialPropertyBlock();
 
-			int withOpacity = 0;
-			foreach (SkinnedMeshRenderer smr in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+			foreach (SkinnedMeshRenderer renderer in GetComponentsInChildren<SkinnedMeshRenderer>(true))
 			{
-				foreach (Material material in smr.materials)
+				Material[] materials = renderer.sharedMaterials;
+				for (int index = 0; index < materials.Length; index++)
 				{
-					if (material != null)
+					Material material = materials[index];
+					if (material == null)
 					{
-						_materials.Add(material);
-						if (material.HasProperty(OpacityProperty))
-						{
-							withOpacity++;
-						}
+						_inspectedMaterials.Add($"{renderer.name}[{index}]=null");
+						continue;
+					}
+
+					string shaderName = material.shader != null ? material.shader.name : "Missing Shader";
+					_inspectedMaterials.Add($"{renderer.name}[{index}]={material.name} ({shaderName})");
+					if (material.HasProperty(OpacityProperty))
+					{
+						_slots.Add(new MaterialSlot(renderer, index));
 					}
 				}
 			}
 
-			if (withOpacity == 0)
+			if (_slots.Count == 0)
 			{
-				Debug.LogWarning($"[DHMGS] DhmgsSkinOpacity '{name}': _Opacity 프로퍼티를 가진 머티리얼을 찾지 못함. 메쉬가 있는 리그 루트에 붙였는지, 셰이더에 _Opacity가 있는지 확인.");
-			}
-		}
-
-		private void OnDestroy()
-		{
-			foreach (Material material in _materials)
-			{
-				if (material != null)
-				{
-					Destroy(material);
-				}
+				string inspected = _inspectedMaterials.Count > 0
+					? string.Join(", ", _inspectedMaterials)
+					: "no SkinnedMeshRenderer materials";
+				Debug.LogWarning(
+					$"[DHMGS] DhmgsSkinOpacity '{name}' found no material with _Opacity. Inspected: {inspected}",
+					this);
 			}
 		}
 	}

@@ -82,6 +82,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 
 				string expectedPath = $"{outputRoot}/writer/writer_generic.anim";
 				Assert.That(written.GenericClip, Is.Not.Null);
+				Assert.That(import.Motion.name, Is.EqualTo("writer"));
 				Assert.That(AssetDatabase.GetAssetPath(written.GenericClip), Is.EqualTo(expectedPath));
 				Assert.That(
 					AssetDatabase.LoadAssetAtPath<AnimationClip>(expectedPath),

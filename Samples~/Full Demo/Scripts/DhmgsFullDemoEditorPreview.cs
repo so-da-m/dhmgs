@@ -13,7 +13,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 	/// The class lives in the sample runtime assembly so Unity can attach it, but UNITY_EDITOR
 	/// removes it completely from Player builds.
 	/// </summary>
-	public sealed class DhmgsFullDemoEditorPreview : MonoBehaviour, IDhmgsFramingTarget
+	public sealed class DhmgsFullDemoEditorPreview : MonoBehaviour, IDhmgsFramingTarget, IDhmgsFramingBounds
 	{
 		private GameObject _genericRoot;
 		private GameObject _genericInstance;
@@ -33,6 +33,16 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				? _genericPivot
 				: _genericInstance.transform)
 			: null;
+
+		public bool TryGetFramingBounds(out Bounds bounds)
+		{
+			if (_clock == null || _genericInstance == null)
+			{
+				bounds = default;
+				return false;
+			}
+			return DhmgsFramingBoundsUtility.TryCalculate(_genericInstance.transform, out bounds);
+		}
 
 		public Task<IDhmgsPlaybackClock> PrepareClockAsync(
 			IEnumerator activation,

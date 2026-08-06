@@ -235,9 +235,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 			if (!Sessions.TryGetValue(context.SessionId, out PreviewSession session))
 			{
-				if (context.BakedPreviewCamera != null && context.Player != null)
+				if (context.BakedPreviewCamera != null)
 				{
-					context.BakedPreviewCamera.SetTarget(context.Player);
+					context.BakedPreviewCamera.SetTarget(null);
 				}
 				return;
 			}
@@ -251,9 +251,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (context == null || context.SessionId == 0 ||
 				!Sessions.TryGetValue(context.SessionId, out PreviewSession session))
 			{
-				if (context != null && context.BakedPreviewCamera != null && context.Player != null)
+				if (context != null && context.BakedPreviewCamera != null)
 				{
-					context.BakedPreviewCamera.SetTarget(context.Player);
+					context.BakedPreviewCamera.SetTarget(null);
 				}
 				return;
 			}
@@ -267,9 +267,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				AbortOverlay(session.Overlay);
 			}
-			if (context.BakedPreviewCamera != null && context.Player != null)
+			if (context.BakedPreviewCamera != null)
 			{
-				context.BakedPreviewCamera.SetTarget(context.Player);
+				context.BakedPreviewCamera.SetTarget(null);
 			}
 		}
 
@@ -304,9 +304,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				AbortOverlay(session.Overlay);
 			}
 			if (resetCameraTarget && session.Context != null &&
-				session.Context.BakedPreviewCamera != null && session.Context.Player != null)
+				session.Context.BakedPreviewCamera != null)
 			{
-				session.Context.BakedPreviewCamera.SetTarget(session.Context.Player);
+				session.Context.BakedPreviewCamera.SetTarget(null);
 			}
 			if (session.Host != null)
 			{

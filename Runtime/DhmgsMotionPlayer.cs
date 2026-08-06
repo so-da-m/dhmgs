@@ -8,7 +8,7 @@ namespace Mnnh.Dhmgs
 	/// Plays an already imported DhmgsMotionAsset on the selected avatar and clothes rigs.
 	/// It has no server, importer, or UI responsibilities.
 	/// </summary>
-	public sealed class DhmgsMotionPlayer : MonoBehaviour, IDhmgsFramingTarget
+	public sealed class DhmgsMotionPlayer : MonoBehaviour, IDhmgsFramingTarget, IDhmgsFramingBounds
 	{
 		[SerializeField] private List<DhmgsRigDriver> _avatars = new List<DhmgsRigDriver>();
 		[SerializeField] private List<DhmgsRigDriver> _clothes = new List<DhmgsRigDriver>();
@@ -45,6 +45,23 @@ namespace Mnnh.Dhmgs
 				}
 				return subject.Pelvis != null ? subject.Pelvis : subject.transform;
 			}
+		}
+
+		public bool TryGetFramingBounds(out Bounds bounds)
+		{
+			bounds = default;
+			bool found = false;
+			DhmgsRigDriver avatar = ActiveAvatarDriver;
+			DhmgsRigDriver clothes = ActiveClothesDriver;
+			DhmgsFramingBoundsUtility.Encapsulate(
+				avatar != null ? avatar.transform : null,
+				ref bounds,
+				ref found);
+			DhmgsFramingBoundsUtility.Encapsulate(
+				clothes != null ? clothes.transform : null,
+				ref bounds,
+				ref found);
+			return _playing && found;
 		}
 
 		private void Awake()

@@ -36,25 +36,40 @@ Shader "Dhmgs/ClothesTransparent"
 			#pragma fragment frag
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+			TEXTURE2D(_BaseMap);
+			SAMPLER(sampler_BaseMap);
+
+			CBUFFER_START(UnityPerMaterial)
+				float4 _BaseMap_ST;
+				half4 _BaseColor;
+				half _Opacity;
+			CBUFFER_END
+
 			struct Attributes
 			{
 				float4 positionOS : POSITION;
+				float2 uv : TEXCOORD0;
 			};
 
 			struct Varyings
 			{
 				float4 positionHCS : SV_POSITION;
+				float2 uv : TEXCOORD0;
 			};
 
 			Varyings vert(Attributes IN)
 			{
 				Varyings OUT;
 				OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
+				OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap);
 				return OUT;
 			}
 
 			half4 frag(Varyings IN) : SV_Target
 			{
+				half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).a *
+					_BaseColor.a * _Opacity;
+				clip(alpha - 0.001h);
 				return half4(0, 0, 0, 0);
 			}
 			ENDHLSL
@@ -115,7 +130,8 @@ Shader "Dhmgs/ClothesTransparent"
 				half3 normalWS = normalize(IN.normalWS);
 				Light mainLight = GetMainLight();
 				half nl = saturate(dot(normalWS, mainLight.direction));
-				half3 lighting = mainLight.color * nl + SampleSH(normalWS);
+				half3 lighting = max(mainLight.color * nl + SampleSH(normalWS),
+					half3(0.35h, 0.35h, 0.35h));
 
 				half3 rgb = baseColor.rgb * lighting;
 				half alpha = baseColor.a * _Opacity;

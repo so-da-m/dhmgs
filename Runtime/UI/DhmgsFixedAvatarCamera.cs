@@ -31,6 +31,12 @@ namespace Mnnh.Dhmgs
 		[Tooltip("pivot까지 거리(m).")]
 		[SerializeField] private float _distance = 3f;
 
+		[Header("Automatic framing")]
+		[Tooltip("Fits the complete active renderer bounds whenever the target changes or Relock is called.")]
+		[SerializeField] private bool _autoFrame = true;
+		[Tooltip("Extra room around the fitted subject. 1 is tight; larger values produce a wider view.")]
+		[SerializeField, Min(1f)] private float _framePadding = 1.25f;
+
 		[Header("Orbit / Zoom 한계·감도")]
 		[SerializeField] private float _minPitch = -80f;
 		[SerializeField] private float _maxPitch = 80f;
@@ -56,8 +62,10 @@ namespace Mnnh.Dhmgs
 
 		private readonly DhmgsPreviewSurface _surface = new DhmgsPreviewSurface();
 		private IDhmgsFramingTarget _target;
+		private IDhmgsFramingBounds _boundsTarget;
 		private Transform _lastPivot;
 		private Vector3 _pivot;
+		private Vector3 _pivotOffset;
 		private Vector3 _pan;
 		private bool _pivotLocked;
 
@@ -67,10 +75,11 @@ namespace Mnnh.Dhmgs
 			RawImage output = GetComponent<RawImage>();
 			_surface.Create("DhmgsFixedAvatarCamera", output, _textureWidth, _textureHeight,
 				_cullingMask, _fieldOfView, _nearClip, _farClip, _background);
-			_surface.SetEnabled(isActiveAndEnabled);
+			_surface.SetEnabled(false);
 
 			// 대상은 항상 명시해 additive scene과 다른 도구의 플레이어를 건드리지 않는다.
 			_target = _targetSource as IDhmgsFramingTarget;
+			_boundsTarget = _targetSource as IDhmgsFramingBounds;
 			if (_target == null && _targetSource != null)
 			{
 				Debug.LogWarning($"[DHMGS] Target Source가 IDhmgsFramingTarget 아님: {_targetSource.GetType().Name}");
@@ -79,7 +88,7 @@ namespace Mnnh.Dhmgs
 
 		private void OnEnable()
 		{
-			_surface.SetEnabled(true);
+			_surface.SetEnabled(_pivotLocked);
 		}
 
 		private void OnDisable()
@@ -96,6 +105,8 @@ namespace Mnnh.Dhmgs
 		public void Relock()
 		{
 			_pivotLocked = false;
+			_surface.SetEnabled(false);
+			_surface.Clear();
 		}
 
 		/// <summary>
@@ -106,9 +117,13 @@ namespace Mnnh.Dhmgs
 		{
 			_targetSource = targetSource;
 			_target = targetSource as IDhmgsFramingTarget;
+			_boundsTarget = targetSource as IDhmgsFramingBounds;
 			_lastPivot = null;
 			_pivotLocked = false;
+			_pivotOffset = Vector3.zero;
 			_pan = Vector3.zero;
+			_surface.SetEnabled(false);
+			_surface.Clear();
 		}
 
 		public void OnDrag(PointerEventData eventData)
@@ -157,8 +172,10 @@ namespace Mnnh.Dhmgs
 			UpdatePivot();
 			if (!_pivotLocked)
 			{
+				_surface.SetEnabled(false);
 				return;
 			}
+			_surface.SetEnabled(isActiveAndEnabled);
 			ApplyOrbit();
 		}
 
@@ -168,6 +185,14 @@ namespace Mnnh.Dhmgs
 			Transform pivot = _target != null ? _target.Pivot : null;
 			if (pivot == null)
 			{
+				if (_lastPivot != null || _pivotLocked)
+				{
+					_lastPivot = null;
+					_pivotLocked = false;
+					_pivotOffset = Vector3.zero;
+					_surface.SetEnabled(false);
+					_surface.Clear();
+				}
 				return;
 			}
 			if (pivot != _lastPivot)
@@ -177,10 +202,74 @@ namespace Mnnh.Dhmgs
 			}
 			if (!_pivotLocked)
 			{
-				_pivot = pivot.position;
+				if (_autoFrame && _boundsTarget != null)
+				{
+					if (!_boundsTarget.TryGetFramingBounds(out Bounds bounds))
+					{
+						return;
+					}
+					Vector3 boundsOffset = bounds.center - pivot.position;
+					float maximumExpectedOffset = Mathf.Max(1f, bounds.extents.magnitude * 2f);
+					if (boundsOffset.sqrMagnitude > maximumExpectedOffset * maximumExpectedOffset)
+					{
+						// A moved skinned mesh can report its previous-frame bounds once. Waiting one
+						// render avoids permanently locking the camera to that stale world position.
+						return;
+					}
+					_pivot = bounds.center;
+					_pivotOffset = _pivot - pivot.position;
+					_distance = CalculateFitDistance(bounds);
+				}
+				else
+				{
+					_pivot = pivot.position;
+					_pivotOffset = Vector3.zero;
+				}
 				_pan = Vector3.zero;
 				_pivotLocked = true;
 			}
+			if (_pivotLocked)
+			{
+				// Follow root translation while preserving the initial full-body framing offset.
+				// This keeps travelling motion in frame without refitting on every animated pose.
+				_pivot = pivot.position + _pivotOffset;
+			}
+		}
+
+		private float CalculateFitDistance(Bounds bounds)
+		{
+			float aspect = Mathf.Max(0.01f, (float)_textureWidth / Mathf.Max(1, _textureHeight));
+			float verticalHalfAngle = Mathf.Clamp(_fieldOfView * 0.5f, 1f, 89f) * Mathf.Deg2Rad;
+			float horizontalHalfAngle = Mathf.Atan(Mathf.Tan(verticalHalfAngle) * aspect);
+			float tanVertical = Mathf.Max(0.01f, Mathf.Tan(verticalHalfAngle));
+			float tanHorizontal = Mathf.Max(0.01f, Mathf.Tan(horizontalHalfAngle));
+
+			float pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+			Vector3 orbitDirection = Quaternion.Euler(-pitch, _yaw, 0f) * Vector3.forward;
+			Quaternion cameraRotation = Quaternion.LookRotation(-orbitDirection, Vector3.up);
+			Vector3 right = cameraRotation * Vector3.right;
+			Vector3 up = cameraRotation * Vector3.up;
+			Vector3 forward = cameraRotation * Vector3.forward;
+
+			float fitted = _minDistance;
+			Vector3 extents = bounds.extents;
+			for (int x = -1; x <= 1; x += 2)
+			{
+				for (int y = -1; y <= 1; y += 2)
+				{
+					for (int z = -1; z <= 1; z += 2)
+					{
+						Vector3 offset = Vector3.Scale(extents, new Vector3(x, y, z));
+						float depthOffset = Vector3.Dot(offset, forward);
+						float horizontal = Mathf.Abs(Vector3.Dot(offset, right)) / tanHorizontal - depthOffset;
+						float vertical = Mathf.Abs(Vector3.Dot(offset, up)) / tanVertical - depthOffset;
+						float nearPlane = _nearClip - depthOffset;
+						fitted = Mathf.Max(fitted, horizontal, vertical, nearPlane);
+					}
+				}
+			}
+
+			return Mathf.Clamp(fitted * Mathf.Max(1f, _framePadding), _minDistance, _maxDistance);
 		}
 
 		private void ApplyOrbit()
