@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0] - 2026-08-06
+
+### Added
+
+- Added an importable `Full Demo` sample under `Samples~`.
+- Bundled a small, build-safe `DhmgsMotionAsset` for immediate playback.
+- Added a self-contained scene demonstrating play, stop, speed control, and Female/Male/Neutral avatar switching.
+- Added sample-owned cross-pipeline materials so no project-local materials are required.
+
+### Changed
+
+- Documented the boundary between the runtime sample and the Editor-only importer/baker.
+
 ## [0.2.0] - 2026-08-06
 
 ### Changed
@@ -16,10 +29,10 @@
 
 ### Added
 
-- Git URL에서 설치할 수 있는 Unity Package Manager 메타데이터.
-- UGUI/TextMesh Pro, Input System, URP 및 필수 Unity 모듈의 명시적 의존성.
-- 일반 Git 바이너리 추적 규칙과 사내 릴리스 문서.
-- 코드 패키지와 선택 리그/데모 콘텐츠의 분리.
-- 기본 SMPL-X Female, Male, Neutral FBX 세 개를 패키지 기본 콘텐츠로 포함.
-- DHMGS 파일을 `Assets/Mnnh.Dhmgs/Package` 와 `Content` 하위에 통합.
-- 베이크 결과 기본 경로를 `Assets/Mnnh.Dhmgs/Content/Generated` 로 변경.
+- Added Unity Package Manager metadata for Git URL installation.
+- Added explicit UGUI, URP, and required Unity module dependencies.
+- Added standard Git binary tracking rules and internal release documentation.
+- Separated package code from optional project-specific rigs and sample content.
+- Bundled the Female, Male, and Neutral SMPL-X base FBX files.
+- Consolidated the package under `Assets/Mnnh.Dhmgs/Package` and local content under `Assets/Mnnh.Dhmgs/Content`.
+- Changed the default imported result path to `Assets/Mnnh.Dhmgs/Content/Generated`.
