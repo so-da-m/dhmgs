@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] - 2026-08-10
+
+### Fixed
+
+- Restyled the Full Demo SMPL-X Rig and Clothes dropdown option rows with high-contrast dark backgrounds, blue interaction states, larger hit targets, and a compact selected-option marker.
+
 ## [0.6.1] - 2026-08-10
 
 ### Fixed

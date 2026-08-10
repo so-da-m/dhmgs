@@ -147,6 +147,89 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"The upper Direct preview camera must keep the established SMPL-X orientation.");
 		}
 
+		[Test]
+		public void FullDemoDropdowns_UseHighContrastOptionRows()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			const string optionRowColors =
+				"    m_NormalColor: {r: 0.1, g: 0.13, b: 0.18, a: 1}\n" +
+				"    m_HighlightedColor: {r: 0.17, g: 0.42, b: 0.66, a: 1}\n" +
+				"    m_PressedColor: {r: 0.12, g: 0.3, b: 0.5, a: 1}\n" +
+				"    m_SelectedColor: {r: 0.14, g: 0.35, b: 0.58, a: 1}\n" +
+				"    m_DisabledColor: {r: 0.08, g: 0.09, b: 0.11, a: 0.65}\n";
+			const string selectedMarker =
+				"  m_AnchoredPosition: {x: 8, y: 0}\n" +
+				"  m_SizeDelta: {x: 4, y: 16}\n";
+			const string selectedMarkerColor =
+				"  m_Color: {r: 0.22, g: 0.72, b: 1, a: 1}\n";
+
+			AssertDropdownTemplate(
+				scene,
+				"SMPL-X Rig",
+				1623962146,
+				1783227,
+				1687078493,
+				1623962145,
+				1687078492,
+				optionRowColors,
+				selectedMarker,
+				selectedMarkerColor);
+			AssertDropdownTemplate(
+				scene,
+				"SMPL-X Clothes",
+				981308389,
+				1250377126,
+				1988399354,
+				981308388,
+				1988399353,
+				optionRowColors,
+				selectedMarker,
+				selectedMarkerColor);
+		}
+
+		private static void AssertDropdownTemplate(
+			string scene,
+			string label,
+			long toggleId,
+			long backgroundId,
+			long markerImageId,
+			long rowRectId,
+			long markerRectId,
+			string optionRowColors,
+			string selectedMarker,
+			string selectedMarkerColor)
+		{
+			string toggle = GetYamlDocument(scene, toggleId);
+			Assert.That(toggle, Does.Contain(optionRowColors),
+				label + " options must use readable dark rows and blue interaction states.");
+			Assert.That(toggle, Does.Contain($"  m_TargetGraphic: {{fileID: {backgroundId}}}"),
+				label + " option colors must target its Item Background.");
+			Assert.That(toggle, Does.Contain($"  graphic: {{fileID: {markerImageId}}}"),
+				label + " Toggle must use its selected-option marker.");
+
+			string rowRect = GetYamlDocument(scene, rowRectId);
+			Assert.That(rowRect, Does.Contain("  m_SizeDelta: {x: 0, y: 28}"),
+				label + " options must retain the larger 28-pixel hit target.");
+
+			string markerRect = GetYamlDocument(scene, markerRectId);
+			Assert.That(markerRect, Does.Contain(selectedMarker),
+				label + " must show a compact selected-option marker.");
+			string markerImage = GetYamlDocument(scene, markerImageId);
+			Assert.That(markerImage, Does.Contain(selectedMarkerColor),
+				label + " selected-option marker must remain visible against the dark row.");
+		}
+
+		private static string GetYamlDocument(string yaml, long fileId)
+		{
+			string id = "&" + fileId + "\n";
+			int idOffset = yaml.IndexOf(id, System.StringComparison.Ordinal);
+			Assert.That(idOffset, Is.GreaterThanOrEqualTo(0), "Missing YAML component " + fileId + ".");
+			int start = yaml.LastIndexOf("--- !u!", idOffset, System.StringComparison.Ordinal);
+			int end = yaml.IndexOf("\n--- !u!", idOffset, System.StringComparison.Ordinal);
+			return end >= 0 ? yaml.Substring(start, end - start) : yaml.Substring(start);
+		}
+
 		private static string ResolvePackageRoot()
 		{
 			UnityEditor.PackageManager.PackageInfo packageInfo =
