@@ -3354,7 +3354,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 5478779261099414881, guid: 34701e122a2f36c478e86d9ca5e21f19, type: 3}
       propertyPath: m_Name
-      value: SmplxChatGarmentClothes
+      value: Garment Clothes
       objectReference: {fileID: 0}
     - target: {fileID: 6223684042338197763, guid: 34701e122a2f36c478e86d9ca5e21f19, type: 3}
       propertyPath: m_LocalPosition.x

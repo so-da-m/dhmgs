@@ -6,7 +6,7 @@ The compact Canvas panel in the upper-left restores the original workflow:
 
 - enter an Attempt ID and select **Fetch** to download, save, bake, and play;
 - choose `None`, Female, Male, Neutral, or the clothes-matched Garment Female from the avatar dropdown;
-- choose the included `SmplxChatGarmentClothes` rig or `None`;
+- choose the paired `Garment Clothes` rig or `None`;
 - adjust avatar, clothes, and Editor video opacity;
 - change playback speed from 0.25x to 2.0x;
 - read the newest-first operation log.

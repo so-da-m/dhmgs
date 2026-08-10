@@ -187,9 +187,21 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			Assert.That(player, Does.Contain("  _defaultAvatar: 2"),
 				"Adding Garment Female must not change the default Neutral avatar.");
 
+			string clothesInstance = GetYamlDocument(scene, 867258590);
+			const string clothesDisplayName =
+				"    - target: {fileID: 5478779261099414881, guid: 34701e122a2f36c478e86d9ca5e21f19, type: 3}\n" +
+				"      propertyPath: m_Name\n" +
+				"      value: Garment Clothes";
+			Assert.That(clothesInstance, Does.Contain(clothesDisplayName),
+				"The paired dropdown entries must share the Garment display name.");
+
 			string instance = GetYamlDocument(scene, 2130640015);
 			Assert.That(instance, Does.Contain("    m_TransformParent: {fileID: 2042756165}"));
-			Assert.That(instance, Does.Contain("      value: Garment Female"));
+			const string avatarDisplayName =
+				"    - target: {fileID: 1306481656450799373, guid: 97941685cb9049043b8730426e785647, type: 3}\n" +
+				"      propertyPath: m_Name\n" +
+				"      value: Garment Female";
+			Assert.That(instance, Does.Contain(avatarDisplayName));
 			Assert.That(instance, Does.Contain(
 				"  m_SourcePrefab: {fileID: 100100000, guid: 97941685cb9049043b8730426e785647, type: 3}"));
 

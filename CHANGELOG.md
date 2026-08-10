@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.8] - 2026-08-10
+
+### Changed
+
+- Matched the Full Demo dropdown labels as `Garment Female` and `Garment Clothes` so their pairing is immediately visible.
+
 ## [0.6.7] - 2026-08-10
 
 ### Added
