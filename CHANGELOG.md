@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 2026-08-10
+
+### Fixed
+
+- Moved the Full Demo Humanoid RenderTexture camera to the Unity-avatar front side so Y Bot faces the viewer while the SMPL-X direct camera keeps its established orientation.
+
 ## [0.6.0] - 2026-08-10
 
 ### Added

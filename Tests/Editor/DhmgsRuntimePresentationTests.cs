@@ -15,6 +15,8 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		private static readonly string RigRoot = PackageRoot + "/SmplxRig";
 		private static readonly string ClothesPrefabPath = RigRoot + "/SmplxChatGarmentClothes.prefab";
 		private static readonly string YBotSourcePath = PackageRoot + "/Samples~/Full Demo/Rig/YBot.fbx";
+		private static readonly string FullDemoScenePath =
+			PackageRoot + "/Samples~/Full Demo/Scenes/DhmgsFullDemo.unity";
 
 		[TestCase("SmplxFemale")]
 		[TestCase("SmplxMale")]
@@ -121,6 +123,28 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"YBot must import as a Humanoid target.");
 			Assert.That(meta, Does.Contain("externalObjects: {}"),
 				"YBot must not depend on project-local material remaps.");
+		}
+
+		[Test]
+		public void FullDemoCameras_StartOnTheirExpectedSides()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			const string humanoidCamera =
+				"_targetSource: {fileID: 0}\n" +
+				"  _textureWidth: 500\n" +
+				"  _textureHeight: 500\n" +
+				"  _yaw: 0\n";
+			Assert.That(scene, Does.Contain(humanoidCamera),
+				"The lower Humanoid preview camera must face the front of a standard Unity avatar.");
+
+			const string directCamera =
+				"_targetSource: {fileID: 1147522662}\n" +
+				"  _textureWidth: 500\n" +
+				"  _textureHeight: 500\n" +
+				"  _yaw: 181.39365\n";
+			Assert.That(scene, Does.Contain(directCamera),
+				"The upper Direct preview camera must keep the established SMPL-X orientation.");
 		}
 
 		private static string ResolvePackageRoot()

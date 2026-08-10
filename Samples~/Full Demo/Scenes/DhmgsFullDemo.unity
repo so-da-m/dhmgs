@@ -3079,7 +3079,7 @@ MonoBehaviour:
   _targetSource: {fileID: 0}
   _textureWidth: 500
   _textureHeight: 500
-  _yaw: 180
+  _yaw: 0
   _pitch: 20
   _distance: 3
   _autoFrame: 1
