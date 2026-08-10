@@ -4992,7 +4992,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: HUMANOID RETARGET  /  Y BOT
+  m_Text: UNITY HUMANOID PLAYBACK
 --- !u!222 &1426311812
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -5421,7 +5421,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: DIRECT MOTION  /  WIDE
+  m_Text: SMPL-X PLAYBACK
 --- !u!222 &1593716993
 CanvasRenderer:
   m_ObjectHideFlags: 0

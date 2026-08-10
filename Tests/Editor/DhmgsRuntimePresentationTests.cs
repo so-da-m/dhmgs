@@ -148,6 +148,19 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		}
 
 		[Test]
+		public void FullDemoComparisonPanels_UsePlaybackLabels()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			Assert.That(GetYamlDocument(scene, 1593716992),
+				Does.Contain("  m_Text: SMPL-X PLAYBACK\n"),
+				"The upper comparison panel must describe its SMPL-X playback content.");
+			Assert.That(GetYamlDocument(scene, 1426311811),
+				Does.Contain("  m_Text: UNITY HUMANOID PLAYBACK\n"),
+				"The lower comparison panel must describe its Unity Humanoid playback content.");
+		}
+
+		[Test]
 		public void FullDemoDropdowns_UseHighContrastOptionRows()
 		{
 			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))

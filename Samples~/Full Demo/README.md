@@ -11,7 +11,7 @@ The compact Canvas panel in the upper-left restores the original workflow:
 - change playback speed from 0.25x to 2.0x;
 - read the newest-first operation log.
 
-The upper-right direct view and lower-right Humanoid retarget view are live RenderTextures. Each target is automatically fitted when it changes. Drag with the left mouse button to orbit, drag with another mouse button to pan, and use the wheel to zoom.
+The upper-right SMPL-X Playback view and lower-right Unity Humanoid Playback view are live RenderTextures. Each target is automatically fitted when it changes. Drag with the left mouse button to orbit, drag with another mouse button to pan, and use the wheel to zoom.
 
 Female, Male, and Neutral reuse the package's original `Dhmgs_SkinTransparent` material. The included garment uses `Dhmgs_ClothTransparent`. YBot keeps its own embedded Mixamo material so the lower view represents an ordinary target avatar instead of another SMPL-X material override.
 

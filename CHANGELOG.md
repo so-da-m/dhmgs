@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.3] - 2026-08-10
+
+### Changed
+
+- Renamed the Full Demo comparison panel titles to `SMPL-X PLAYBACK` and `UNITY HUMANOID PLAYBACK` so they describe content rather than camera framing or a replaceable preview avatar.
+
 ## [0.6.2] - 2026-08-10
 
 ### Fixed
