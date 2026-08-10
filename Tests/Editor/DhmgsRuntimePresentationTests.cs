@@ -17,6 +17,8 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		private static readonly string YBotSourcePath = PackageRoot + "/Samples~/Full Demo/Rig/YBot.fbx";
 		private static readonly string FullDemoScenePath =
 			PackageRoot + "/Samples~/Full Demo/Scenes/DhmgsFullDemo.unity";
+		private static readonly string FullDemoControllerPath =
+			PackageRoot + "/Samples~/Full Demo/Scripts/DhmgsFullDemoController.cs";
 
 		[TestCase("SmplxFemale")]
 		[TestCase("SmplxMale")]
@@ -153,11 +155,33 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
 				.Replace("\r\n", "\n");
 			Assert.That(GetYamlDocument(scene, 1593716992),
-				Does.Contain("  m_Text: SMPL-X PLAYBACK\n"),
+				Does.EndWith("  m_Text: SMPL-X PLAYBACK"),
 				"The upper comparison panel must describe its SMPL-X playback content.");
 			Assert.That(GetYamlDocument(scene, 1426311811),
-				Does.Contain("  m_Text: UNITY HUMANOID PLAYBACK\n"),
+				Does.EndWith("  m_Text: UNITY HUMANOID PLAYBACK"),
 				"The lower comparison panel must describe its Unity Humanoid playback content.");
+		}
+
+		[Test]
+		public void FullDemoIntro_StartsWithoutInstructionCopy()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			Assert.That(GetYamlDocument(scene, 935676495), Does.EndWith("  m_Text:"),
+				"The static Fetch/bake/playback description must start empty.");
+			Assert.That(GetYamlDocument(scene, 1660494554), Does.EndWith("  m_Text:"),
+				"The operation status must start empty until work begins.");
+
+			string controller = File.ReadAllText(Path.GetFullPath(FullDemoControllerPath))
+				.Replace("\r\n", "\n");
+			Assert.That(controller, Does.Not.Contain("Ready. Enter an Attempt ID and Fetch."),
+				"The controller must not restore the removed initial instruction at runtime.");
+			const string initialStatus =
+				"SetProgress(0f, available\n" +
+				"\t\t\t\t? string.Empty\n" +
+				"\t\t\t\t: \"Fetch, baking, and video preview are Editor-only.\");";
+			Assert.That(controller, Does.Contain(initialStatus),
+				"The Editor-ready path must remain empty while the unavailable path keeps its explanation.");
 		}
 
 		[Test]

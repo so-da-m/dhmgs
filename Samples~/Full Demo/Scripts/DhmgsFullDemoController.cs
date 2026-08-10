@@ -365,7 +365,7 @@ namespace Mnnh.Dhmgs.Samples
 					available && DhmgsFullDemoImportGateway.SupportsVideoPreview(_importContext);
 			}
 			SetProgress(0f, available
-				? "Ready. Enter an Attempt ID and Fetch."
+				? string.Empty
 				: "Fetch, baking, and video preview are Editor-only.");
 		}
 

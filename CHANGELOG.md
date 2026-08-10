@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.4] - 2026-08-10
+
+### Changed
+
+- Removed the Full Demo title description and initial Ready/Fetch instruction while preserving live progress, success, and failure status messages once an operation starts.
+
 ## [0.6.3] - 2026-08-10
 
 ### Changed
