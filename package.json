@@ -1,6 +1,6 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "displayName": "MNNH DHMGS",
   "description": "Editor-only DHMGS download, Generic/Humanoid baking, and retarget preview with build-safe playback.",
   "unity": "6000.5",

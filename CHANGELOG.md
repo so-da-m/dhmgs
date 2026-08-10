@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.5] - 2026-08-10
+
+### Changed
+
+- Compacted the Full Demo control panel from 560 to 500 pixels tall while preserving live operation status, playback state, and log output.
+
+### Fixed
+
+- Corrected the four interactive slider handle offsets so Unity's stretched handles resolve to 16 pixels high instead of overlapping adjacent rows.
+
 ## [0.6.4] - 2026-08-10
 
 ### Changed

@@ -185,6 +185,47 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		}
 
 		[Test]
+		public void FullDemoControlPanel_UsesCompactLayoutAndContainedSliderHandles()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+
+			AssertRect(scene, 1194733685, 20, -20, 430, 500, "Control Panel");
+			AssertRect(scene, 935676494, 18, -43, 394, 0, "Removed description slot");
+			AssertRect(scene, 845203382, 18, -46, 394, 20, "Server row");
+			AssertRect(scene, 834354359, 18, -72, 86, 34, "Attempt ID label");
+			AssertRect(scene, 1219108606, 104, -72, 126, 34, "Attempt ID input");
+			AssertRect(scene, 2083564318, 238, -72, 174, 34, "Fetch button");
+			AssertRect(scene, 2000084992, 18, -113, 394, 10, "Fetch progress");
+			AssertRect(scene, 1660494553, 18, -127, 394, 22, "Operation status");
+			AssertRect(scene, 1950418010, 18, -155, 394, 1, "Upper divider");
+			AssertRect(scene, 1656304924, 18, -166, 124, 32, "Rig label");
+			AssertRect(scene, 1993110571, 146, -166, 266, 32, "Rig dropdown");
+			AssertRect(scene, 941369818, 18, -202, 124, 32, "Clothes label");
+			AssertRect(scene, 443806443, 146, -202, 266, 32, "Clothes dropdown");
+			AssertRect(scene, 589403728, 18, -240, 122, 26, "Avatar opacity label");
+			AssertRect(scene, 1609728958, 143, -241, 210, 24, "Avatar opacity slider");
+			AssertRect(scene, 499116788, 361, -240, 51, 26, "Avatar opacity value");
+			AssertRect(scene, 587835256, 18, -272, 122, 26, "Clothes opacity label");
+			AssertRect(scene, 790697361, 143, -273, 210, 24, "Clothes opacity slider");
+			AssertRect(scene, 456937357, 361, -272, 51, 26, "Clothes opacity value");
+			AssertRect(scene, 2050478462, 18, -304, 122, 26, "Video opacity label");
+			AssertRect(scene, 598595543, 143, -305, 210, 24, "Video opacity slider");
+			AssertRect(scene, 960203951, 361, -304, 51, 26, "Video opacity value");
+			AssertRect(scene, 2140026618, 18, -336, 122, 26, "Play speed label");
+			AssertRect(scene, 1866058379, 143, -337, 210, 24, "Play speed slider");
+			AssertRect(scene, 292419785, 361, -336, 51, 26, "Play speed value");
+			AssertRect(scene, 944199121, 18, -369, 394, 1, "Lower divider");
+			AssertRect(scene, 1900638898, 18, -379, 394, 22, "Playback status");
+			AssertRect(scene, 1909998407, 18, -407, 394, 77, "Log panel");
+
+			AssertSliderHandle(scene, "Avatar opacity", 1609728959, 1609728958, 607842515, 59828390);
+			AssertSliderHandle(scene, "Clothes opacity", 790697362, 790697361, 742654941, 1629121359);
+			AssertSliderHandle(scene, "Video opacity", 598595544, 598595543, 238878688, 804265266);
+			AssertSliderHandle(scene, "Play speed", 1866058380, 1866058379, 419068377, 572283857);
+		}
+
+		[Test]
 		public void FullDemoDropdowns_UseHighContrastOptionRows()
 		{
 			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
@@ -255,6 +296,57 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			string markerImage = GetYamlDocument(scene, markerImageId);
 			Assert.That(markerImage, Does.Contain(selectedMarkerColor),
 				label + " selected-option marker must remain visible against the dark row.");
+		}
+
+		private static void AssertRect(
+			string scene,
+			long rectId,
+			int x,
+			int y,
+			int width,
+			int height,
+			string label)
+		{
+			string expected =
+				$"  m_AnchoredPosition: {{x: {x}, y: {y}}}\n" +
+				$"  m_SizeDelta: {{x: {width}, y: {height}}}";
+			Assert.That(GetYamlDocument(scene, rectId), Does.Contain(expected),
+				label + " must retain the compact Full Demo layout.");
+		}
+
+		private static void AssertSliderHandle(
+			string scene,
+			string label,
+			long sliderId,
+			long sliderRectId,
+			long handleAreaId,
+			long handleRectId)
+		{
+			string slider = GetYamlDocument(scene, sliderId);
+			Assert.That(slider, Does.Contain($"  m_HandleRect: {{fileID: {handleRectId}}}"),
+				label + " Slider must keep its intended Handle Rect.");
+			Assert.That(slider, Does.Contain("  m_Direction: 0"),
+				label + " Slider must remain horizontal so Unity drives the handle's vertical anchors.");
+			Assert.That(GetYamlDocument(scene, sliderRectId),
+				Does.Contain("  m_SizeDelta: {x: 210, y: 24}"),
+				label + " Slider row must remain 24 pixels high.");
+
+			string handleArea = GetYamlDocument(scene, handleAreaId);
+			Assert.That(handleArea, Does.Contain($"  m_Father: {{fileID: {sliderRectId}}}"),
+				label + " Handle Slide Area must remain under its Slider row.");
+			const string stretchedHandleArea =
+				"  m_AnchorMin: {x: 0, y: 0}\n" +
+				"  m_AnchorMax: {x: 1, y: 1}\n" +
+				"  m_AnchoredPosition: {x: 0, y: 0}\n" +
+				"  m_SizeDelta: {x: -16, y: 0}";
+			Assert.That(handleArea, Does.Contain(stretchedHandleArea),
+				label + " Handle Slide Area must remain aligned to the 16-pixel handle width.");
+
+			string handle = GetYamlDocument(scene, handleRectId);
+			Assert.That(handle, Does.Contain($"  m_Father: {{fileID: {handleAreaId}}}"),
+				label + " Handle Rect must remain under its stretched Handle Slide Area.");
+			Assert.That(handle, Does.Contain("  m_SizeDelta: {x: 16, y: -8}"),
+				label + " handle must resolve to 16 pixels high after Unity stretches it across the 24-pixel row.");
 		}
 
 		private static string GetYamlDocument(string yaml, long fileId)
