@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6] - 2026-08-10
+
+### Changed
+
+- Standardized the Full Demo SMPL-X and Unity Humanoid preview cameras on the same pitch, field of view, framing padding, background, and interaction sensitivity while retaining the opposite yaw required for each rig's front axis.
+- Framed direct playback from the active avatar body rather than expanding the camera for optional clothes, so clothes selection no longer changes the comparison scale.
+
 ## [0.6.5] - 2026-08-10
 
 ### Changed

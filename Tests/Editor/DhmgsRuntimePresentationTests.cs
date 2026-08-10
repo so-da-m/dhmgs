@@ -128,25 +128,27 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		}
 
 		[Test]
-		public void FullDemoCameras_StartOnTheirExpectedSides()
+		public void FullDemoCameras_UseEquivalentFrontFacingConditions()
 		{
 			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
 				.Replace("\r\n", "\n");
-			const string humanoidCamera =
-				"_targetSource: {fileID: 0}\n" +
-				"  _textureWidth: 500\n" +
-				"  _textureHeight: 500\n" +
-				"  _yaw: 0\n";
-			Assert.That(scene, Does.Contain(humanoidCamera),
-				"The lower Humanoid preview camera must face the front of a standard Unity avatar.");
+			AssertPreviewCameraSettings(scene, 1597169320, 1147522662, 180, "SMPL-X");
+			AssertPreviewCameraSettings(scene, 829823346, 0, 0, "Unity Humanoid");
+		}
 
-			const string directCamera =
-				"_targetSource: {fileID: 1147522662}\n" +
-				"  _textureWidth: 500\n" +
-				"  _textureHeight: 500\n" +
-				"  _yaw: 181.39365\n";
-			Assert.That(scene, Does.Contain(directCamera),
-				"The upper Direct preview camera must keep the established SMPL-X orientation.");
+		[Test]
+		public void FullDemoClothesSelection_PreservesDirectFraming()
+		{
+			string controller = File.ReadAllText(Path.GetFullPath(FullDemoControllerPath))
+				.Replace("\r\n", "\n");
+			const string clothesHandler =
+				"\t\tprivate void OnClothesChanged(int value)\n" +
+				"\t\t{\n" +
+				"\t\t\t_player?.SetClothesIndex(value - 1);\n" +
+				"\t\t\tOnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);\n" +
+				"\t\t}";
+			Assert.That(controller, Does.Contain(clothesHandler),
+				"Changing optional clothes must not refit the direct camera at a different animation pose.");
 		}
 
 		[Test]
@@ -314,6 +316,40 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				label + " must retain the compact Full Demo layout.");
 		}
 
+		private static void AssertPreviewCameraSettings(
+			string scene,
+			long componentId,
+			long targetId,
+			int frontFacingYaw,
+			string label)
+		{
+			string expected =
+				$"  _targetSource: {{fileID: {targetId}}}\n" +
+				"  _textureWidth: 500\n" +
+				"  _textureHeight: 500\n" +
+				$"  _yaw: {frontFacingYaw}\n" +
+				"  _pitch: 20\n" +
+				"  _distance: 3\n" +
+				"  _autoFrame: 1\n" +
+				"  _framePadding: 1.25\n" +
+				"  _minPitch: -80\n" +
+				"  _maxPitch: 80\n" +
+				"  _minDistance: 0.8\n" +
+				"  _maxDistance: 8\n" +
+				"  _orbitSpeed: 0.3\n" +
+				"  _zoomSpeed: 0.5\n" +
+				"  _panSpeed: 0.002\n" +
+				"  _fieldOfView: 60\n" +
+				"  _nearClip: 0.05\n" +
+				"  _farClip: 100\n" +
+				"  _cullingMask:\n" +
+				"    serializedVersion: 2\n" +
+				"    m_Bits: 4294967291\n" +
+				"  _background: {r: 0, g: 0, b: 0, a: 1}";
+			Assert.That(GetYamlDocument(scene, componentId), Does.Contain(expected),
+				label + " preview must use the shared camera preset with its rig-specific front-facing yaw.");
+		}
+
 		private static void AssertSliderHandle(
 			string scene,
 			string label,
@@ -426,6 +462,63 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			{
 				Object.DestroyImmediate(root);
 			}
+		}
+
+		[Test]
+		public void MotionPlayerFraming_UsesAvatarBoundsInsteadOfClothes()
+		{
+			GameObject root = new GameObject("Player Framing Test");
+			root.SetActive(false);
+			DhmgsMotionPlayer player = root.AddComponent<DhmgsMotionPlayer>();
+
+			GameObject avatarRoot = new GameObject("Avatar");
+			avatarRoot.transform.SetParent(root.transform, false);
+			DhmgsRigDriver avatar = avatarRoot.AddComponent<DhmgsRigDriver>();
+			GameObject avatarMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			avatarMesh.transform.SetParent(avatarRoot.transform, false);
+
+			GameObject clothesRoot = new GameObject("Clothes");
+			clothesRoot.transform.SetParent(root.transform, false);
+			DhmgsRigDriver clothes = clothesRoot.AddComponent<DhmgsRigDriver>();
+			GameObject clothesMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			clothesMesh.transform.SetParent(clothesRoot.transform, false);
+			clothesMesh.transform.localPosition = new Vector3(100f, 0f, 0f);
+
+			SetPrivateField(player, "_avatars",
+				new System.Collections.Generic.List<DhmgsRigDriver> { avatar });
+			SetPrivateField(player, "_clothes",
+				new System.Collections.Generic.List<DhmgsRigDriver> { clothes });
+			SetPrivateField(player, "_defaultAvatar", 0);
+			SetPrivateField(player, "_defaultClothes", 0);
+
+			try
+			{
+				root.SetActive(true);
+				SetPrivateField(player, "_playing", true);
+				Assert.That(clothesRoot.activeInHierarchy, Is.True,
+					"The clothes renderer must be active to prove it is excluded from avatar framing.");
+				Assert.That(player.TryGetFramingBounds(out Bounds avatarBounds), Is.True);
+				Assert.That(avatarBounds.center.x, Is.EqualTo(0f).Within(0.001f));
+				Assert.That(avatarBounds.size.x, Is.EqualTo(1f).Within(0.001f));
+
+				player.SetAvatarIndex(-1);
+				Assert.That(player.TryGetFramingBounds(out Bounds clothesFallback), Is.True);
+				Assert.That(clothesFallback.center.x, Is.EqualTo(100f).Within(0.001f),
+					"Clothes must remain a framing fallback when no avatar is active.");
+			}
+			finally
+			{
+				Object.DestroyImmediate(root);
+			}
+		}
+
+		private static void SetPrivateField(object target, string fieldName, object value)
+		{
+			System.Reflection.FieldInfo field = target.GetType().GetField(
+				fieldName,
+				System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+			Assert.That(field, Is.Not.Null, "Missing private field " + fieldName + ".");
+			field.SetValue(target, value);
 		}
 	}
 }

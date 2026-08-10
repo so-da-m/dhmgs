@@ -3083,7 +3083,7 @@ MonoBehaviour:
   _pitch: 20
   _distance: 3
   _autoFrame: 1
-  _framePadding: 1.1
+  _framePadding: 1.25
   _minPitch: -80
   _maxPitch: 80
   _minDistance: 0.8
@@ -3097,7 +3097,7 @@ MonoBehaviour:
   _cullingMask:
     serializedVersion: 2
     m_Bits: 4294967291
-  _background: {r: 0.1, g: 0.1, b: 0.1, a: 1}
+  _background: {r: 0, g: 0, b: 0, a: 1}
 --- !u!114 &829823347
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5485,19 +5485,19 @@ MonoBehaviour:
   _targetSource: {fileID: 1147522662}
   _textureWidth: 500
   _textureHeight: 500
-  _yaw: 181.39365
-  _pitch: 13.8093
-  _distance: 6.2
+  _yaw: 180
+  _pitch: 20
+  _distance: 3
   _autoFrame: 1
-  _framePadding: 1.6
+  _framePadding: 1.25
   _minPitch: -80
   _maxPitch: 80
   _minDistance: 0.8
   _maxDistance: 8
-  _orbitSpeed: 0.1
-  _zoomSpeed: 0.1
+  _orbitSpeed: 0.3
+  _zoomSpeed: 0.5
   _panSpeed: 0.002
-  _fieldOfView: 85
+  _fieldOfView: 60
   _nearClip: 0.05
   _farClip: 100
   _cullingMask:

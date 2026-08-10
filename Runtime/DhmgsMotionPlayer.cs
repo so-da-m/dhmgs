@@ -47,18 +47,17 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
+		/// <summary>
+		/// Frames the active avatar as the canonical subject. Active clothes do not alter
+		/// comparison scale, but remain the fallback when no avatar is selected.
+		/// </summary>
 		public bool TryGetFramingBounds(out Bounds bounds)
 		{
 			bounds = default;
 			bool found = false;
-			DhmgsRigDriver avatar = ActiveAvatarDriver;
-			DhmgsRigDriver clothes = ActiveClothesDriver;
+			DhmgsRigDriver subject = ActiveSubject;
 			DhmgsFramingBoundsUtility.Encapsulate(
-				avatar != null ? avatar.transform : null,
-				ref bounds,
-				ref found);
-			DhmgsFramingBoundsUtility.Encapsulate(
-				clothes != null ? clothes.transform : null,
+				subject != null ? subject.transform : null,
 				ref bounds,
 				ref found);
 			return _playing && found;
