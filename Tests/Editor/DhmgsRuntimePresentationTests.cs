@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 
 using NUnit.Framework;
 
@@ -13,6 +14,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 	{
 		private static readonly string PackageRoot = ResolvePackageRoot();
 		private static readonly string RigRoot = PackageRoot + "/SmplxRig";
+		private static readonly string GarmentAvatarPrefabPath = RigRoot + "/SmplxChatGarmentFemale.prefab";
 		private static readonly string ClothesPrefabPath = RigRoot + "/SmplxChatGarmentClothes.prefab";
 		private static readonly string YBotSourcePath = PackageRoot + "/Samples~/Full Demo/Rig/YBot.fbx";
 		private static readonly string FullDemoScenePath =
@@ -49,6 +51,66 @@ namespace Mnnh.Dhmgs.Editor.Tests
 						$"{prefabName}/{renderer.name} material '{material.name}' does not support _Opacity.");
 				}
 			}
+		}
+
+		[Test]
+		public void GarmentAvatarPrefab_IsStandaloneFixedShapeBody()
+		{
+			GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(GarmentAvatarPrefabPath);
+			Assert.That(prefab, Is.Not.Null, "Missing clothes-matched Garment Female prefab.");
+			Assert.That(prefab.GetComponentsInChildren<DhmgsRigDriver>(true), Has.Length.EqualTo(1));
+			Assert.That(prefab.GetComponentsInChildren<DhmgsSkinOpacity>(true), Has.Length.EqualTo(1));
+			Assert.That(prefab.GetComponentsInChildren<SMPLX>(true), Is.Empty,
+				"The fixed-shape SMPL-X Body must not retain the shape/corrective runtime component.");
+
+			Animator animator = prefab.GetComponentInChildren<Animator>(true);
+			Assert.That(animator, Is.Not.Null);
+			Assert.That(animator.avatar, Is.Null,
+				"The direct-playback avatar must not retain the source FBX Avatar subasset.");
+
+			SkinnedMeshRenderer[] renderers = prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+			Assert.That(renderers, Has.Length.EqualTo(1));
+			SkinnedMeshRenderer renderer = renderers[0];
+			Assert.That(renderer.sharedMesh, Is.Not.Null);
+			Assert.That(renderer.sharedMesh.vertexCount, Is.EqualTo(11314));
+			Assert.That(renderer.sharedMesh.blendShapeCount, Is.Zero,
+				"The redistributable fixed-shape Body must not contain source model blendshapes.");
+			Assert.That(renderer.bones, Has.Length.EqualTo(56));
+			Assert.That(renderer.rootBone, Is.Not.Null);
+			GameObject clothesPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ClothesPrefabPath);
+			Assert.That(clothesPrefab, Is.Not.Null);
+			SkinnedMeshRenderer clothesRenderer =
+				clothesPrefab.GetComponentInChildren<SkinnedMeshRenderer>(true);
+			Assert.That(clothesRenderer, Is.Not.Null);
+			CollectionAssert.AreEqual(
+				clothesRenderer.bones.Select(bone => bone.name).ToArray(),
+				renderer.bones.Select(bone => bone.name).ToArray(),
+				"Garment Female and its clothes must retain the same ordered skinning skeleton.");
+			for (int boneIndex = 0; boneIndex < renderer.bones.Length; boneIndex++)
+			{
+				Transform avatarBone = renderer.bones[boneIndex];
+				Transform clothesBone = clothesRenderer.bones[boneIndex];
+				Assert.That(Vector3.Distance(avatarBone.localPosition, clothesBone.localPosition),
+					Is.LessThan(0.00001f), avatarBone.name + " rest position no longer matches the clothes rig.");
+			}
+			foreach (Material material in renderer.sharedMaterials)
+			{
+				Assert.That(material, Is.Not.Null);
+				Assert.That(material.shader.name, Is.EqualTo("Dhmgs/SkinTransparent"));
+				Assert.That(material.HasProperty("_Opacity"), Is.True);
+			}
+
+			foreach (string dependency in AssetDatabase.GetDependencies(GarmentAvatarPrefabPath, true))
+			{
+				Assert.That(Path.GetExtension(dependency), Is.Not.EqualTo(".fbx").IgnoreCase,
+					"Standalone Garment Female must not depend on an FBX: " + dependency);
+				Assert.That(dependency.Replace('\\', '/'), Does.Not.Contain("/Content/"),
+					"Standalone Garment Female must not depend on project-local Content: " + dependency);
+			}
+
+			string yaml = File.ReadAllText(Path.GetFullPath(GarmentAvatarPrefabPath));
+			Assert.That(yaml, Does.Not.Contain("35625701d562c0b46ae707147ad6b37e"),
+				"Standalone Garment Female must not retain the source model GUID.");
 		}
 
 		[Test]
@@ -107,6 +169,33 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				Assert.That(yaml, Does.Not.Contain("guid: " + modelGuid),
 					"Standalone clothes prefab YAML must not reference FBX model GUID " + modelGuid + ".");
 			}
+		}
+
+		[Test]
+		public void FullDemo_IncludesClothesMatchedGarmentFemale()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			string player = GetYamlDocument(scene, 1147522662);
+			const string avatarList =
+				"  _avatars:\n" +
+				"  - {fileID: 444694584}\n" +
+				"  - {fileID: 29406781}\n" +
+				"  - {fileID: 1557838068}\n" +
+				"  - {fileID: 2130640016}";
+			Assert.That(player, Does.Contain(avatarList));
+			Assert.That(player, Does.Contain("  _defaultAvatar: 2"),
+				"Adding Garment Female must not change the default Neutral avatar.");
+
+			string instance = GetYamlDocument(scene, 2130640015);
+			Assert.That(instance, Does.Contain("    m_TransformParent: {fileID: 2042756165}"));
+			Assert.That(instance, Does.Contain("      value: Garment Female"));
+			Assert.That(instance, Does.Contain(
+				"  m_SourcePrefab: {fileID: 100100000, guid: 97941685cb9049043b8730426e785647, type: 3}"));
+
+			string driver = GetYamlDocument(scene, 2130640016);
+			Assert.That(driver, Does.Contain(
+				"  m_CorrespondingSourceObject: {fileID: 5713619894650008075, guid: 97941685cb9049043b8730426e785647, type: 3}"));
 		}
 
 		[Test]
@@ -387,8 +476,12 @@ namespace Mnnh.Dhmgs.Editor.Tests
 
 		private static string GetYamlDocument(string yaml, long fileId)
 		{
-			string id = "&" + fileId + "\n";
-			int idOffset = yaml.IndexOf(id, System.StringComparison.Ordinal);
+			string id = "&" + fileId;
+			int idOffset = yaml.IndexOf(id + "\n", System.StringComparison.Ordinal);
+			if (idOffset < 0)
+			{
+				idOffset = yaml.IndexOf(id + " stripped\n", System.StringComparison.Ordinal);
+			}
 			Assert.That(idOffset, Is.GreaterThanOrEqualTo(0), "Missing YAML component " + fileId + ".");
 			int start = yaml.LastIndexOf("--- !u!", idOffset, System.StringComparison.Ordinal);
 			int end = yaml.IndexOf("\n--- !u!", idOffset, System.StringComparison.Ordinal);

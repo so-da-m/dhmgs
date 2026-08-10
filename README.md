@@ -13,7 +13,7 @@ DHMGS 결과를 Unity 에셋으로 가져오고 SMPL-X 리그에서 재생하기
 Unity Package Manager의 **Add package from git URL**에서 릴리스 태그를 지정합니다.
 
 ```text
-https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.6
+https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.7
 ```
 
 사내 private 저장소이므로 설치하는 PC의 Git 자격 증명에 저장소 읽기 권한이 있어야 합니다. Git LFS는 사용하지 않습니다.
@@ -23,13 +23,13 @@ https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.6
 Package Manager에서 **MNNH DHMGS > Samples > Full Demo > Import**를 누른 뒤 아래 씬을 엽니다.
 
 ```text
-Assets/Samples/MNNH DHMGS/0.6.6/Full Demo/Scenes/DhmgsFullDemo.unity
+Assets/Samples/MNNH DHMGS/0.6.7/Full Demo/Scenes/DhmgsFullDemo.unity
 ```
 
 Play Mode의 compact Canvas UI에서 다음 기능을 확인할 수 있습니다.
 
 - Attempt ID 입력 후 **Fetch** 한 번으로 다운로드, 저장, Humanoid 베이크, YBot 리타게팅 재생
-- `None`, Female, Male, Neutral 기본 SMPL-X 아바타 선택
+- `None`, Female, Male, Neutral 또는 의상 기준 체형인 Garment Female 아바타 선택
 - 포함된 `SmplxChatGarmentClothes` 선택과 아바타/의상 투명도 조절
 - 0.25x~2.0x 재생 속도 및 Editor 영상 투명도 조절
 - 최신순 상태 로그
@@ -64,8 +64,8 @@ Package/
 ├─ Tests/Editor/
 ├─ SmplxRig/
 │  ├─ SmplxFemale.prefab, SmplxMale.prefab, SmplxNeutral.prefab
-│  ├─ SmplxChatGarmentClothes.prefab
-│  ├─ Meshes/               # Git LFS 없이 포함한 standalone 의상 Mesh
+│  ├─ SmplxChatGarmentFemale.prefab, SmplxChatGarmentClothes.prefab
+│  ├─ Meshes/               # Git LFS 없이 포함한 standalone 아바타·의상 Mesh
 │  └─ Raw/
 │     ├─ SmplxFemale.fbx
 │     ├─ SmplxMale.fbx
@@ -143,7 +143,7 @@ DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
 
 ## 릴리스 규칙
 
-- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.6.6` ↔ `v0.6.6`.
+- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.6.7` ↔ `v0.6.7`.
 - 소비 프로젝트는 floating branch 대신 릴리스 태그에 고정합니다.
 - `Content/Generated`와 프로젝트 전용 rig/scene은 패키지 저장소에 커밋하지 않습니다.
 - 100 MiB가 넘는 단일 바이너리는 저장소에 넣지 않고 별도 콘텐츠 전달 방식을 사용합니다.

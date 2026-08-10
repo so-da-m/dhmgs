@@ -10,6 +10,15 @@
 - 라이선스: `Runtime/SMPLX/LICENSE.md`
 - 원본 정보: `Runtime/SMPLX/README.md`
 
+## SMPL-X Body: Garment Female
+
+- 위치: `SmplxRig/SmplxChatGarmentFemale.prefab`, `SmplxRig/Meshes/smplx_chat_garment_female.asset`
+- 용도: Full Demo의 `SmplxChatGarmentClothes`와 짝을 이루는 고정 체형 아바타
+- 변경: 원본 FBX와 모든 shape/expression/pose blendshape를 제외하고 기준 Mesh, skeleton rig, skin weights만 standalone Unity 에셋으로 변환
+- 저작권: Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V.
+- 라이선스: [SMPL-X Body Creative Commons Attribution 4.0 International](https://smpl-x.is.tue.mpg.de/bodylicense.html)
+- 표시: “SMPL-X Body was used for character animation courtesy of the Max Planck Institute for Intelligent Systems.”
+
 ## SimpleJSON
 
 - 위치: `Runtime/ThirdParty/SimpleJSON.cs`

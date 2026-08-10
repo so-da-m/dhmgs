@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.7] - 2026-08-10
+
+### Added
+
+- Added the clothes-matched Garment Female avatar to the Full Demo avatar selector.
+- Added it as a lightweight standalone fixed-shape SMPL-X Body with package-local Mesh and material dependencies, without adding its 65 MB source FBX or requiring Git LFS.
+
 ## [0.6.6] - 2026-08-10
 
 ### Changed

@@ -4108,6 +4108,7 @@ MonoBehaviour:
   - {fileID: 444694584}
   - {fileID: 29406781}
   - {fileID: 1557838068}
+  - {fileID: 2130640016}
   _clothes:
   - {fileID: 867258591}
   _defaultAvatar: 2
@@ -7587,6 +7588,7 @@ Transform:
   - {fileID: 29406782}
   - {fileID: 1557838069}
   - {fileID: 867258592}
+  - {fileID: 2130640017}
   m_Father: {fileID: 855757583}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2050478461
@@ -7916,6 +7918,79 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!1001 &2130640015
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2042756165}
+    m_Modifications:
+    - target: {fileID: 1306481656450799373, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_Name
+      value: Garment Female
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 97941685cb9049043b8730426e785647, type: 3}
+--- !u!114 &2130640016 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 5713619894650008075, guid: 97941685cb9049043b8730426e785647, type: 3}
+  m_PrefabInstance: {fileID: 2130640015}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ad6cda9001f9404f92146c83d411696, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Mnnh.Dhmgs.Runtime::Mnnh.Dhmgs.DhmgsAvatarPlayer
+--- !u!4 &2130640017 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8676267800880107727, guid: 97941685cb9049043b8730426e785647, type: 3}
+  m_PrefabInstance: {fileID: 2130640015}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &2140026617
 GameObject:
   m_ObjectHideFlags: 0
