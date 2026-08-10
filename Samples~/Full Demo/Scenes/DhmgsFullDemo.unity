@@ -3523,7 +3523,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Fetch downloads, bakes a Generic clip, and starts synchronized playback.
+  m_Text: Fetch downloads, bakes a Humanoid clip, and starts synchronized playback.
 --- !u!222 &935676496
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -3982,7 +3982,7 @@ MonoBehaviour:
   _defaultBaseUrl: http://192.168.1.128:8090
   _previewCamera: {fileID: 1553856927}
   _directPreviewCamera: {fileID: 1597169320}
-  _bakedPreviewCamera: {fileID: 829823346}
+  _humanoidPreviewCamera: {fileID: 829823346}
   _attemptIdInput: {fileID: 1219108607}
   _fetchButton: {fileID: 2083564319}
   _importProgress: {fileID: 2000084993}
@@ -4992,7 +4992,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: BAKED GENERIC  /  DETAIL
+  m_Text: HUMANOID RETARGET  /  Y BOT
 --- !u!222 &1426311812
 CanvasRenderer:
   m_ObjectHideFlags: 0

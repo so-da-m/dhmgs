@@ -32,19 +32,19 @@ namespace Mnnh.Dhmgs.Samples
 			DhmgsFullDemoController owner,
 			DhmgsMotionPlayer player,
 			Camera previewCamera,
-			DhmgsFixedAvatarCamera bakedPreviewCamera)
+			DhmgsFixedAvatarCamera humanoidPreviewCamera)
 		{
 			Owner = owner;
 			Player = player;
 			PreviewCamera = previewCamera;
-			BakedPreviewCamera = bakedPreviewCamera;
+			HumanoidPreviewCamera = humanoidPreviewCamera;
 			SessionId = owner != null ? Interlocked.Increment(ref _nextSessionId) : 0;
 		}
 
 		public DhmgsFullDemoController Owner { get; }
 		public DhmgsMotionPlayer Player { get; }
 		public Camera PreviewCamera { get; }
-		public DhmgsFixedAvatarCamera BakedPreviewCamera { get; }
+		public DhmgsFixedAvatarCamera HumanoidPreviewCamera { get; }
 		public int SessionId { get; }
 		public bool IsActive => Owner != null && Owner.isActiveAndEnabled;
 	}

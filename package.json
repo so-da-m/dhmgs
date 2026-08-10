@@ -1,8 +1,8 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "displayName": "MNNH DHMGS",
-  "description": "Editor-only DHMGS download, Generic baking, and video preview with build-safe SMPL-X playback.",
+  "description": "Editor-only DHMGS download, Generic/Humanoid baking, and retarget preview with build-safe playback.",
   "unity": "6000.5",
   "unityRelease": "1f1",
   "license": "See LICENSE.md file",
@@ -26,7 +26,7 @@
   "samples": [
     {
       "displayName": "Full Demo",
-      "description": "Use the compact Attempt ID Fetch workflow, avatar and clothes controls, and two auto-framed RenderTexture views with package-owned SMPL-X rigs.",
+      "description": "Compare direct SMPL-X motion with a baked Unity Humanoid clip retargeted to the included Y Bot.",
       "path": "Samples~/Full Demo"
     }
   ]

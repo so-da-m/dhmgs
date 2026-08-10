@@ -134,6 +134,21 @@ namespace Mnnh.Dhmgs.Editor
 			Avatar avatar = animator != null ? animator.avatar : null;
 			if (avatar == null || !avatar.isValid || !avatar.isHuman)
 			{
+				string modelPath = AssetDatabase.GetAssetPath(model);
+				if (!string.IsNullOrEmpty(modelPath))
+				{
+					foreach (UnityEngine.Object candidate in AssetDatabase.LoadAllAssetsAtPath(modelPath))
+					{
+						if (candidate is Avatar imported && imported.isValid && imported.isHuman)
+						{
+							avatar = imported;
+							break;
+						}
+					}
+				}
+			}
+			if (avatar == null || !avatar.isValid || !avatar.isHuman)
+			{
 				error = "모델이 Humanoid가 아닙니다. FBX의 Rig를 Humanoid로 임포트했는지 확인하세요.";
 				return null;
 			}
@@ -240,12 +255,17 @@ namespace Mnnh.Dhmgs.Editor
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			Animator animator = instance.GetComponentInChildren<Animator>(true);
-			if (animator == null || animator.avatar == null || !animator.avatar.isValid || !animator.avatar.isHuman)
+			if (animator == null)
+			{
+				animator = instance.AddComponent<Animator>();
+			}
+			animator.avatar = avatar;
+			if (animator.avatar == null || !animator.avatar.isValid || !animator.avatar.isHuman)
 			{
 				return new HumanoidClipPair { error = "베이크 인스턴스에서 유효한 Humanoid Animator를 찾지 못했습니다." };
 			}
 
-			Transform root = player.Root;
+			Transform root = animator.transform;
 			root.position = Vector3.zero;
 			root.rotation = Quaternion.identity;
 			player.ApplyPose(asset, 0);
@@ -258,7 +278,7 @@ namespace Mnnh.Dhmgs.Editor
 			// 매 프레임 다시 맞추지 않으므로 점프와 pelvis 상하 이동은 그대로 유지된다.
 			float groundOffsetY = -firstFrameGroundY;
 			Vector3 firstPelvisPosition = asset.pelvisPositions[0];
-			HumanPoseHandler poseHandler = new HumanPoseHandler(avatar, instance.transform);
+			using HumanPoseHandler poseHandler = new HumanPoseHandler(avatar, animator.transform);
 			HumanPose humanPose = new HumanPose();
 
 			int frameCount = asset.frameCount;

@@ -24,6 +24,7 @@ namespace Mnnh.Dhmgs.Editor
 		public string MotionAssetPath { get; internal set; }
 		public AnimationClip GenericClip { get; internal set; }
 		public AnimationClip HumanoidInPlaceClip { get; internal set; }
+		public AnimationClip HumanoidRootMotionClip { get; internal set; }
 		public string Summary { get; internal set; }
 	}
 
@@ -75,6 +76,7 @@ namespace Mnnh.Dhmgs.Editor
 				options,
 				out AnimationClip genericClip,
 				out AnimationClip humanoidInPlaceClip,
+				out AnimationClip humanoidRootMotionClip,
 				cancellationToken);
 
 			cancellationToken.ThrowIfCancellationRequested();
@@ -88,6 +90,7 @@ namespace Mnnh.Dhmgs.Editor
 				MotionAssetPath = motionPath,
 				GenericClip = genericClip,
 				HumanoidInPlaceClip = humanoidInPlaceClip,
+				HumanoidRootMotionClip = humanoidRootMotionClip,
 				Summary = $"[{import.SourceId}] Saved {import.Motion.frameCount} frames @ {import.Motion.fps:F2} fps\n{motionPath}{notes}",
 			};
 		}
@@ -134,10 +137,12 @@ namespace Mnnh.Dhmgs.Editor
 			DhmgsAssetWriteOptions options,
 			out AnimationClip genericClip,
 			out AnimationClip humanoidInPlaceClip,
+			out AnimationClip humanoidRootMotionClip,
 			CancellationToken cancellationToken)
 		{
 			genericClip = null;
 			humanoidInPlaceClip = null;
+			humanoidRootMotionClip = null;
 			string notes = string.Empty;
 			cancellationToken.ThrowIfCancellationRequested();
 
@@ -207,7 +212,10 @@ namespace Mnnh.Dhmgs.Editor
 								outputDirectory,
 								$"{assetId}_humanoid_inplace");
 							cancellationToken.ThrowIfCancellationRequested();
-							SaveClipAsset(rootMotion, outputDirectory, $"{assetId}_humanoid_rootmotion");
+							humanoidRootMotionClip = SaveClipAsset(
+								rootMotion,
+								outputDirectory,
+								$"{assetId}_humanoid_rootmotion");
 							notes += $"\nHumanoid In-Place: {outputDirectory}/{assetId}_humanoid_inplace.anim";
 							notes += $"\nHumanoid Root Motion: {outputDirectory}/{assetId}_humanoid_rootmotion.anim";
 						}

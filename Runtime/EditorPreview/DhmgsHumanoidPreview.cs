@@ -1,0 +1,199 @@
+using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
+
+using UnityEditor;
+
+namespace Mnnh.Dhmgs
+{
+	/// <summary>
+	/// Plays a baked Humanoid clip on an arbitrary Humanoid avatar and keeps it
+	/// synchronized with the same frame clock as the direct SMPL-X preview.
+	/// </summary>
+	public sealed class DhmgsHumanoidPreview : MonoBehaviour, IDhmgsFramingTarget, IDhmgsFramingBounds
+	{
+		private GameObject _instance;
+		private Animator _animator;
+		private Transform _pivot;
+		private PlayableGraph _graph;
+		private AnimationClipPlayable _clipPlayable;
+		private bool _graphValid;
+		private IDhmgsPlaybackClock _source;
+		private float _fps = 30f;
+
+		public Transform Pivot => _source != null && _instance != null
+			? (_pivot != null ? _pivot : _instance.transform)
+			: null;
+
+		public bool TryGetFramingBounds(out Bounds bounds)
+		{
+			if (_source == null || _instance == null)
+			{
+				bounds = default;
+				return false;
+			}
+			return DhmgsFramingBoundsUtility.TryCalculate(_instance.transform, out bounds);
+		}
+
+		/// <summary>
+		/// Instantiates <paramref name="avatarPrefab"/> at an isolated world position
+		/// and evaluates the Humanoid clip manually from <paramref name="source"/>.
+		/// </summary>
+		public bool Play(
+			GameObject avatarPrefab,
+			AnimationClip clip,
+			IDhmgsPlaybackClock source,
+			float fps,
+			Vector3 isolationPosition)
+		{
+			Clear();
+			if (avatarPrefab == null || clip == null || source == null)
+			{
+				return false;
+			}
+
+			try
+			{
+				_instance = Instantiate(avatarPrefab, transform, false);
+				_instance.name = $"{avatarPrefab.name} (DHMGS Humanoid Preview)";
+				_instance.hideFlags = HideFlags.DontSave;
+				_instance.transform.position = isolationPosition;
+				_instance.transform.rotation = Quaternion.identity;
+				_instance.transform.localScale = Vector3.one;
+
+				_animator = _instance.GetComponentInChildren<Animator>(true);
+				if (_animator == null)
+				{
+					_animator = _instance.AddComponent<Animator>();
+				}
+				Avatar avatar = ResolveHumanoidAvatar(avatarPrefab, _animator);
+				if (avatar == null)
+				{
+					Debug.LogError($"[DHMGS] '{avatarPrefab.name}' is not a valid Humanoid avatar.", avatarPrefab);
+					Clear();
+					return false;
+				}
+
+				_animator.avatar = avatar;
+				_animator.runtimeAnimatorController = null;
+				_animator.applyRootMotion = false;
+				_animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+				_pivot = _animator.GetBoneTransform(HumanBodyBones.Hips);
+				foreach (SkinnedMeshRenderer renderer in _instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+				{
+					renderer.updateWhenOffscreen = true;
+				}
+
+				_source = source;
+				_fps = fps > 0f ? fps : 30f;
+				BuildGraph(clip);
+				EvaluateCurrentFrame();
+				return true;
+			}
+			catch
+			{
+				Clear();
+				throw;
+			}
+		}
+
+		public void Stop()
+		{
+			Clear();
+		}
+
+		private void Update()
+		{
+			EvaluateCurrentFrame();
+		}
+
+		private void EvaluateCurrentFrame()
+		{
+			if (_source == null || !_graphValid)
+			{
+				return;
+			}
+			_clipPlayable.SetTime(_source.CurrentFrame / _fps);
+			_graph.Evaluate(0f);
+		}
+
+		private void BuildGraph(AnimationClip clip)
+		{
+			DestroyGraph();
+			_graph = PlayableGraph.Create("DHMGS Humanoid Preview");
+			_graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+			AnimationPlayableOutput output = AnimationPlayableOutput.Create(_graph, "Animation", _animator);
+			_clipPlayable = AnimationClipPlayable.Create(_graph, clip);
+			_clipPlayable.SetApplyFootIK(false);
+			output.SetSourcePlayable(_clipPlayable);
+			_graph.Play();
+			_graphValid = true;
+		}
+
+		private static Avatar ResolveHumanoidAvatar(GameObject avatarAsset, Animator animator)
+		{
+			Avatar avatar = animator != null ? animator.avatar : null;
+			if (avatar != null && avatar.isValid && avatar.isHuman)
+			{
+				return avatar;
+			}
+
+			string path = AssetDatabase.GetAssetPath(avatarAsset);
+			if (string.IsNullOrEmpty(path))
+			{
+				return null;
+			}
+			foreach (Object candidate in AssetDatabase.LoadAllAssetsAtPath(path))
+			{
+				if (candidate is Avatar imported && imported.isValid && imported.isHuman)
+				{
+					return imported;
+				}
+			}
+			return null;
+		}
+
+		private void Clear()
+		{
+			_source = null;
+			_pivot = null;
+			_animator = null;
+			DestroyGraph();
+			if (_instance != null)
+			{
+				DestroyPreviewObject(_instance);
+				_instance = null;
+			}
+		}
+
+		private void OnDestroy()
+		{
+			Clear();
+		}
+
+		private void DestroyGraph()
+		{
+			if (_graph.IsValid())
+			{
+				_graph.Destroy();
+			}
+			_graphValid = false;
+		}
+
+		private static void DestroyPreviewObject(Object value)
+		{
+			if (value == null)
+			{
+				return;
+			}
+			if (Application.isPlaying)
+			{
+				Destroy(value);
+			}
+			else
+			{
+				DestroyImmediate(value);
+			}
+		}
+	}
+}

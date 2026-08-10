@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] - 2026-08-10
+
+### Added
+
+- Included a package-local Humanoid Y Bot target in the Full Demo without Git LFS.
+- Added regression coverage for raw Humanoid FBX baking and Y Bot package dependencies.
+
+### Changed
+
+- Changed the lower RenderTexture from a duplicate Generic SMPL-X preview to a baked Humanoid clip retargeted onto Y Bot through Unity Playables.
+- Switched the bundled Neutral SMPL-X FBX import rig to Humanoid so it can author both Humanoid muscle clips and direct SMPL-X playback without a duplicate 30 MB FBX.
+- Made raw Humanoid FBX assets usable directly as bake and preview inputs by resolving their imported Avatar subasset and adding the transient Animator automatically.
+- Exposed both saved Humanoid in-place and root-motion clips from `DhmgsAssetWriteResult`.
+- Removed the custom Humanoid preview layer requirement; isolated Editor previews no longer mutate project layer settings.
+- Moved the Humanoid preview component out of Unity's special `Editor/` folder so it remains build-excluded but can be attached to the transient preview host.
+
 ## [0.5.2] - 2026-08-06
 
 ### Fixed

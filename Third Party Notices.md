@@ -22,6 +22,14 @@
 - 저작권: Copyright (c) 2015 darkdragon-001
 - 라이선스: `Runtime/ThirdParty/Matrix/LICENSE.txt`
 
+## Adobe Mixamo Y Bot
+
+- 위치: `Samples~/Full Demo/Rig/YBot.fbx`
+- 용도: Full Demo의 Unity Humanoid 리타게팅 재생 대상
+- 출처: Adobe Mixamo / Mixamo, Inc. (FBX 내부 메타데이터 기준)
+- 범위: 사내 Full Demo 샘플
+- 주의: 이 패키지의 `LICENSE.md`는 Y Bot에 대한 제3자 권리를 부여하지 않습니다. 사내 저장소 배포 전 Adobe/Mixamo 이용 조건과 조직의 사용 권한을 확인하십시오.
+
 ## 선택 콘텐츠
 
-`Assets/Mnnh.Dhmgs/Content`의 Pretendard 폰트, Mixamo 리그, 추가 SMPL-X/Kyra FBX, 장면 FBX에 대한 패키지 루트 라이선스 문서는 현재 준비되어 있지 않습니다. 릴리스에 선택한 항목만 권한과 고지 요건을 확인하십시오.
+`Assets/Mnnh.Dhmgs/Content`의 Pretendard 폰트, 추가 Mixamo 리그, 추가 SMPL-X/Kyra FBX, 장면 FBX에 대한 패키지 루트 라이선스 문서는 현재 준비되어 있지 않습니다. 릴리스에 선택한 항목만 권한과 고지 요건을 확인하십시오.

@@ -15,14 +15,15 @@ namespace Mnnh.Dhmgs.Samples.Editor
 	[InitializeOnLoad]
 	internal static class DhmgsFullDemoEditorImportBridge
 	{
-		private const string GenericRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
-		private const string SkinMaterialGuid = "f7b072368c25ef54e8b35a56058f4183";
+		private const string HumanoidBakeRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
+		private const string YBotGuid = "121420fccd4c4bba93c676f768fdf0a5";
 
 		private sealed class PreviewSession
 		{
 			public DhmgsSampleImportContext Context;
 			public GameObject Host;
 			public DhmgsFullDemoEditorPreview Preview;
+			public DhmgsHumanoidPreview HumanoidPreview;
 			public DhmgsCameraOverlay Overlay;
 			public VideoPlayer VideoPlayer;
 			public float VideoOpacity = 1f;
@@ -64,6 +65,37 @@ namespace Mnnh.Dhmgs.Samples.Editor
 		{
 			ThrowIfUnavailable(context, cancellationToken);
 			ResetPreview(context);
+			if (context.HumanoidPreviewCamera == null)
+			{
+				throw new InvalidOperationException(
+					"The Full Demo Humanoid preview camera is not assigned.");
+			}
+
+			try
+			{
+				return await ImportAndSaveCoreAsync(
+					context,
+					baseUrl,
+					attemptId,
+					progress,
+					cancellationToken);
+			}
+			catch
+			{
+				ResetPreview(context);
+				throw;
+			}
+		}
+
+		private static async Task<DhmgsSampleImportResult> ImportAndSaveCoreAsync(
+			DhmgsSampleImportContext context,
+			string baseUrl,
+			int attemptId,
+			IProgress<DhmgsSampleImportProgress> progress,
+			CancellationToken cancellationToken)
+		{
+			GameObject humanoidBakeRig = LoadRequiredModel(HumanoidBakeRigGuid, "Humanoid SMPL-X bake rig");
+			GameObject yBot = LoadRequiredModel(YBotGuid, "Y Bot preview avatar");
 
 			IProgress<DhmgsImportProgress> pipelineProgress =
 				new Progress<DhmgsImportProgress>(value => Report(progress, value));
@@ -73,21 +105,21 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				cancellationToken);
 
 			ThrowIfUnavailable(context, cancellationToken);
-			string genericRigPath = AssetDatabase.GUIDToAssetPath(GenericRigGuid);
-			GameObject genericRig = AssetDatabase.LoadAssetAtPath<GameObject>(genericRigPath);
-			string skinMaterialPath = AssetDatabase.GUIDToAssetPath(SkinMaterialGuid);
-			Material skinMaterial = AssetDatabase.LoadAssetAtPath<Material>(skinMaterialPath);
 			DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
 				import,
 				new DhmgsAssetWriteOptions
 				{
 					OutputRoot = DhmgsAssetWriter.DefaultOutputRoot,
-					GenericRig = genericRig,
-					BakeGenericClip = genericRig != null,
-					BakeHumanoidClips = false,
+					HumanoidRig = humanoidBakeRig,
+					BakeGenericClip = false,
+					BakeHumanoidClips = true,
 					CancellationToken = cancellationToken,
 				},
 				pipelineProgress);
+			if (written.HumanoidInPlaceClip == null)
+			{
+				throw new InvalidOperationException($"Humanoid bake did not produce a clip.\n{written.Summary}");
+			}
 
 			ThrowIfUnavailable(context, cancellationToken);
 			string videoPath = DhmgsImportPipeline.WritePreviewVideo(import);
@@ -121,20 +153,21 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 
 			ThrowIfUnavailable(context, cancellationToken);
-			if (genericRig != null && written.GenericClip != null)
+			session ??= GetOrCreateSession(context);
+			bool humanoidPreviewStarted = session.HumanoidPreview.Play(
+				yBot,
+				written.HumanoidInPlaceClip,
+				clock,
+				import.Motion.fps,
+				ResolveIsolationPosition(context));
+			if (!humanoidPreviewStarted)
 			{
-				session ??= GetOrCreateSession(context);
-				session.Preview.PlayGeneric(
-					genericRig,
-					skinMaterial,
-					written.GenericClip,
-					clock,
-					import.Motion.fps,
-					ResolveIsolationPosition(context));
-				if (context.BakedPreviewCamera != null)
-				{
-					context.BakedPreviewCamera.SetTarget(session.Preview);
-				}
+				throw new InvalidOperationException(
+					"Could not play the baked Humanoid clip on the bundled Y Bot avatar.");
+			}
+			if (context.HumanoidPreviewCamera != null)
+			{
+				context.HumanoidPreviewCamera.SetTarget(session.HumanoidPreview);
 			}
 
 			string videoNote = videoPath == null
@@ -152,7 +185,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			ThrowIfUnavailable(context, CancellationToken.None);
 			if (Sessions.TryGetValue(context.SessionId, out PreviewSession existing))
 			{
-				if (existing.Host != null && existing.Preview != null &&
+				if (existing.Host != null && existing.Preview != null && existing.HumanoidPreview != null &&
 					existing.Context.Owner == context.Owner)
 				{
 					return existing;
@@ -167,7 +200,8 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			};
 			host.transform.SetParent(context.Owner.transform, false);
 			DhmgsFullDemoEditorPreview preview = host.AddComponent<DhmgsFullDemoEditorPreview>();
-			if (preview == null)
+			DhmgsHumanoidPreview humanoidPreview = host.AddComponent<DhmgsHumanoidPreview>();
+			if (preview == null || humanoidPreview == null)
 			{
 				DestroySessionObject(host);
 				throw new InvalidOperationException("Could not create the isolated DHMGS preview host.");
@@ -178,6 +212,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				Context = context,
 				Host = host,
 				Preview = preview,
+				HumanoidPreview = humanoidPreview,
 			};
 			Sessions.Add(context.SessionId, session);
 			return session;
@@ -235,9 +270,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 			if (!Sessions.TryGetValue(context.SessionId, out PreviewSession session))
 			{
-				if (context.BakedPreviewCamera != null)
+				if (context.HumanoidPreviewCamera != null)
 				{
-					context.BakedPreviewCamera.SetTarget(null);
+					context.HumanoidPreviewCamera.SetTarget(null);
 				}
 				return;
 			}
@@ -251,9 +286,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (context == null || context.SessionId == 0 ||
 				!Sessions.TryGetValue(context.SessionId, out PreviewSession session))
 			{
-				if (context != null && context.BakedPreviewCamera != null)
+				if (context != null && context.HumanoidPreviewCamera != null)
 				{
-					context.BakedPreviewCamera.SetTarget(null);
+					context.HumanoidPreviewCamera.SetTarget(null);
 				}
 				return;
 			}
@@ -261,15 +296,18 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (session.Preview != null)
 			{
 				session.Preview.CancelClockPreparation();
-				session.Preview.ClearGeneric();
+			}
+			if (session.HumanoidPreview != null)
+			{
+				session.HumanoidPreview.Stop();
 			}
 			if (session.Overlay != null)
 			{
 				AbortOverlay(session.Overlay);
 			}
-			if (context.BakedPreviewCamera != null)
+			if (context.HumanoidPreviewCamera != null)
 			{
-				context.BakedPreviewCamera.SetTarget(null);
+				context.HumanoidPreviewCamera.SetTarget(null);
 			}
 		}
 
@@ -297,16 +335,19 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (session.Preview != null)
 			{
 				session.Preview.CancelClockPreparation();
-				session.Preview.ClearGeneric();
+			}
+			if (session.HumanoidPreview != null)
+			{
+				session.HumanoidPreview.Stop();
 			}
 			if (session.Overlay != null)
 			{
 				AbortOverlay(session.Overlay);
 			}
 			if (resetCameraTarget && session.Context != null &&
-				session.Context.BakedPreviewCamera != null)
+				session.Context.HumanoidPreviewCamera != null)
 			{
-				session.Context.BakedPreviewCamera.SetTarget(null);
+				session.Context.HumanoidPreviewCamera.SetTarget(null);
 			}
 			if (session.Host != null)
 			{
@@ -333,6 +374,17 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				return camera.transform.position + camera.transform.right * distance;
 			}
 			return context.Owner.transform.position + Vector3.right * 10000f;
+		}
+
+		private static GameObject LoadRequiredModel(string guid, string label)
+		{
+			string path = AssetDatabase.GUIDToAssetPath(guid);
+			GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+			if (model == null)
+			{
+				throw new InvalidOperationException($"{label} is missing from the Full Demo sample (GUID {guid}).");
+			}
+			return model;
 		}
 
 		private static void ThrowIfUnavailable(

@@ -14,6 +14,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		private static readonly string PackageRoot = ResolvePackageRoot();
 		private static readonly string RigRoot = PackageRoot + "/SmplxRig";
 		private static readonly string ClothesPrefabPath = RigRoot + "/SmplxChatGarmentClothes.prefab";
+		private static readonly string YBotSourcePath = PackageRoot + "/Samples~/Full Demo/Rig/YBot.fbx";
 
 		[TestCase("SmplxFemale")]
 		[TestCase("SmplxMale")]
@@ -102,6 +103,24 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				Assert.That(yaml, Does.Not.Contain("guid: " + modelGuid),
 					"Standalone clothes prefab YAML must not reference FBX model GUID " + modelGuid + ".");
 			}
+		}
+
+		[Test]
+		public void FullDemoYBot_IsBundledWithoutGitLfsOrExternalFiles()
+		{
+			string absoluteFbxPath = Path.GetFullPath(YBotSourcePath);
+			string absoluteMetaPath = absoluteFbxPath + ".meta";
+			Assert.That(File.Exists(absoluteFbxPath), Is.True, "Missing Full Demo YBot FBX.");
+			Assert.That(File.Exists(absoluteMetaPath), Is.True, "Missing Full Demo YBot meta file.");
+			Assert.That(new FileInfo(absoluteFbxPath).Length, Is.LessThan(100L * 1024L * 1024L),
+				"YBot must stay below GitHub's regular-file limit and must not require Git LFS.");
+
+			string meta = File.ReadAllText(absoluteMetaPath);
+			Assert.That(meta, Does.Contain("guid: 121420fccd4c4bba93c676f768fdf0a5"));
+			Assert.That(meta, Does.Contain("animationType: 3"),
+				"YBot must import as a Humanoid target.");
+			Assert.That(meta, Does.Contain("externalObjects: {}"),
+				"YBot must not depend on project-local material remaps.");
 		}
 
 		private static string ResolvePackageRoot()

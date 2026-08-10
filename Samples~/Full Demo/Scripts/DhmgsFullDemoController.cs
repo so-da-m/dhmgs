@@ -25,7 +25,7 @@ namespace Mnnh.Dhmgs.Samples
 		[SerializeField] private string _defaultBaseUrl = "http://192.168.1.128:8090";
 		[SerializeField] private Camera _previewCamera;
 		[SerializeField] private DhmgsFixedAvatarCamera _directPreviewCamera;
-		[SerializeField] private DhmgsFixedAvatarCamera _bakedPreviewCamera;
+		[SerializeField] private DhmgsFixedAvatarCamera _humanoidPreviewCamera;
 
 		[Header("Fetch")]
 		[SerializeField] private InputField _attemptIdInput;
@@ -61,7 +61,7 @@ namespace Mnnh.Dhmgs.Samples
 				this,
 				_player,
 				_previewCamera,
-				_bakedPreviewCamera);
+				_humanoidPreviewCamera);
 		}
 
 		private void OnEnable()
@@ -295,7 +295,7 @@ namespace Mnnh.Dhmgs.Samples
 		private void RelockPreviewCameras()
 		{
 			_directPreviewCamera?.Relock();
-			_bakedPreviewCamera?.Relock();
+			_humanoidPreviewCamera?.Relock();
 		}
 
 		private void OnClothesChanged(int value)

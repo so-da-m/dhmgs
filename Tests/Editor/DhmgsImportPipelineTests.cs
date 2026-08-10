@@ -130,6 +130,61 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		}
 
 		[Test]
+		public void AssetWriter_BakesHumanoidClipsFromRawBundledNeutralModel()
+		{
+			const string humanoidRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
+			string outputRoot = $"Assets/__DhmgsHumanoidWriterTests_{Guid.NewGuid():N}";
+			DhmgsImportResult import = DhmgsImportPipeline.ImportArchive(
+				CreateArchive(frameCountInManifest: 2, frameCountInSequence: 2),
+				"humanoid-writer");
+			string rigPath = AssetDatabase.GUIDToAssetPath(humanoidRigGuid);
+			GameObject humanoidRig = AssetDatabase.LoadAssetAtPath<GameObject>(rigPath);
+
+			try
+			{
+				Assert.That(humanoidRig, Is.Not.Null, "The bundled Neutral SMPL-X model is missing.");
+				Avatar avatar = AssetDatabase.LoadAllAssetsAtPath(rigPath)
+					.OfType<Avatar>()
+					.FirstOrDefault(candidate => candidate.isValid && candidate.isHuman);
+				Assert.That(avatar, Is.Not.Null,
+					"The bundled Neutral SMPL-X FBX must import as a valid Humanoid bake source.");
+
+				DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
+					import,
+					new DhmgsAssetWriteOptions
+					{
+						OutputRoot = outputRoot,
+						HumanoidRig = humanoidRig,
+						BakeGenericClip = false,
+						BakeHumanoidClips = true,
+					});
+
+				string inPlacePath = $"{outputRoot}/humanoid-writer/humanoid-writer_humanoid_inplace.anim";
+				string rootMotionPath = $"{outputRoot}/humanoid-writer/humanoid-writer_humanoid_rootmotion.anim";
+				Assert.That(written.HumanoidInPlaceClip, Is.Not.Null, written.Summary);
+				Assert.That(written.HumanoidRootMotionClip, Is.Not.Null, written.Summary);
+				Assert.That(AssetDatabase.GetAssetPath(written.HumanoidInPlaceClip), Is.EqualTo(inPlacePath));
+				Assert.That(AssetDatabase.GetAssetPath(written.HumanoidRootMotionClip), Is.EqualTo(rootMotionPath));
+				Assert.That(AssetDatabase.LoadAssetAtPath<AnimationClip>(rootMotionPath),
+					Is.SameAs(written.HumanoidRootMotionClip));
+
+				EditorCurveBinding[] bindings = AnimationUtility.GetCurveBindings(written.HumanoidInPlaceClip);
+				Assert.That(bindings.Any(binding =>
+					binding.type == typeof(Animator) && binding.propertyName == "RootT.y"), Is.True);
+				Assert.That(bindings.Any(binding =>
+					binding.type == typeof(Animator) && binding.propertyName.Contains("Spine")), Is.True);
+			}
+			finally
+			{
+				AssetDatabase.DeleteAsset(outputRoot);
+				if (import.Motion != null && !AssetDatabase.Contains(import.Motion))
+				{
+					Object.DestroyImmediate(import.Motion);
+				}
+			}
+		}
+
+		[Test]
 		public void AnimationClipBaker_RejectsPreCancelledWork()
 		{
 			const string genericRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
