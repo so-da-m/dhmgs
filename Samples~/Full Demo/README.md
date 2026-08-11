@@ -2,6 +2,8 @@
 
 Open `Scenes/DhmgsFullDemo.unity` and enter Play Mode.
 
+Installing or updating the package in the interactive Unity Editor automatically enables Insecure HTTP and validates the project once per local user, project path, and package version. Later domain reloads repair that required HTTP setting if project files reset it. This is a persistent, project-wide Player setting and is not restored when the package is removed. The manual `DHMGS > Project > Validate` and `DHMGS > Project > Allow Insecure HTTP` commands remain available; missing TMP Essential Resources produce a warning but are never imported automatically.
+
 The compact Canvas panel in the upper-left restores the original workflow:
 
 - enter an Attempt ID and select **Fetch** to download, save, bake, and play;

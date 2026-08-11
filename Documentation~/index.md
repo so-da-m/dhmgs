@@ -25,6 +25,12 @@ internal HTTP or archive bytes
 
 `DhmgsImportPipeline` owns acquisition and decoding. `DhmgsAssetWriter` owns `AssetDatabase` writes and clip baking. `DhmgsMotionPlayer` never invokes either one.
 
+## Project setup
+
+After package installation or update, the interactive Editor enables Insecure HTTP and validates the consuming project once for each local user, project-path, and package-version combination. On later domain reloads it still checks this required setting and restores it if project files were reset, while the one-time marker suppresses repeated validation warnings. This is a persistent, project-wide `PlayerSettings` change; removing the package does not restore the previous value. The completion marker is stored in that user's `EditorPrefs`, so a package update or another workstation receives a new marker. Batch-mode jobs skip the mutation and do not consume the marker.
+
+The manual `DHMGS > Project > Validate` and `DHMGS > Project > Allow Insecure HTTP` commands remain available for explicit rechecks or recovery. Validation reports missing TMP Essential Resources, but the package never imports them automatically because they are needed only by optional UI. The Humanoid preview does not require a custom project layer.
+
 ## Build contract
 
 A Player build may consume:

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.10] - 2026-08-11
+
+### Added
+
+- Automatically enables and repairs the required Insecure HTTP setting, and validates the consuming Unity project once per local project path and package version after install or update.
+- Keeps the manual `DHMGS > Project > Validate` and `Allow Insecure HTTP` commands for explicit rechecks and recovery.
+
 ## [0.6.9] - 2026-08-11
 
 ### Added

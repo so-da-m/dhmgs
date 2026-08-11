@@ -22,6 +22,8 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			PackageRoot + "/Samples~/Full Demo/Scenes/DhmgsFullDemo.unity";
 		private static readonly string FullDemoControllerPath =
 			PackageRoot + "/Samples~/Full Demo/Scripts/DhmgsFullDemoController.cs";
+		private static readonly string ProjectValidatorPath =
+			PackageRoot + "/Editor/DhmgsProjectValidator.cs";
 
 		[TestCase("SmplxFemale")]
 		[TestCase("SmplxMale")]
@@ -227,6 +229,122 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"YBot must import as a Humanoid target.");
 			Assert.That(meta, Does.Contain("externalObjects: {}"),
 				"YBot must not depend on project-local material remaps.");
+		}
+
+		[Test]
+		public void ProjectSetup_AutoConfiguresOncePerPackageVersionAndKeepsManualCommands()
+		{
+			const string currentVersion = "0.6.10";
+			string projectA = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectA");
+			string projectB = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectB");
+			string first = global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
+				projectA,
+				currentVersion);
+
+			Assert.That(first, Is.EqualTo(
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
+					projectA,
+					currentVersion)));
+			Assert.That(first, Does.StartWith("Mnnh.Dhmgs.AutoProjectConfiguration."));
+			Assert.That(first, Does.EndWith("." + currentVersion));
+			Assert.That(first, Is.Not.EqualTo(
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
+					projectB,
+					currentVersion)),
+				"Different Unity projects must not share the automatic-setup marker.");
+			Assert.That(first, Is.Not.EqualTo(
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
+					projectA,
+					"0.6.11")),
+				"A package update must get a fresh automatic-setup marker.");
+			Assert.That(global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.FallbackPackageVersion,
+				Is.EqualTo(currentVersion));
+
+			string source = File.ReadAllText(Path.GetFullPath(ProjectValidatorPath))
+				.Replace("\r\n", "\n");
+			Assert.That(source, Does.Contain("[InitializeOnLoad]"));
+			Assert.That(source, Does.Contain(
+				"EditorApplication.delayCall += AutoConfigureAfterImport;"));
+			Assert.That(source, Does.Contain("if (Application.isBatchMode)"),
+				"Batch jobs must not mutate checked-in ProjectSettings or consume the interactive setup marker.");
+			Assert.That(source, Does.Contain(
+				"if (EditorApplication.isCompiling || EditorApplication.isUpdating)"));
+			Assert.That(source, Does.Contain(
+				"if (EditorPrefs.GetBool(configurationKey, false))"));
+			Assert.That(source, Does.Contain(
+				"EditorPrefs.SetBool(configurationKey, true);"));
+			int autoMethod = source.IndexOf(
+				"private static void AutoConfigureAfterImport()",
+				System.StringComparison.Ordinal);
+			Assert.That(autoMethod, Is.GreaterThanOrEqualTo(0));
+			Assert.That(source.IndexOf(
+				"ConfigureProject(packageVersion, configurationKey);",
+				autoMethod,
+				System.StringComparison.Ordinal), Is.GreaterThan(autoMethod));
+			int configureMethod = source.IndexOf(
+				"internal static void ConfigureProject(string packageVersion, string configurationKey)",
+				System.StringComparison.Ordinal);
+			Assert.That(configureMethod, Is.GreaterThan(autoMethod));
+			int ensureRequiredSetting = source.IndexOf(
+				"bool changed = EnsureInsecureHttpAllowed();",
+				configureMethod,
+				System.StringComparison.Ordinal);
+			int markerGate = source.IndexOf(
+				"if (EditorPrefs.GetBool(configurationKey, false))",
+				configureMethod,
+				System.StringComparison.Ordinal);
+			int oneTimeValidation = source.IndexOf(
+				"bool valid = ValidateProject(logSuccess: false);",
+				configureMethod,
+				System.StringComparison.Ordinal);
+			Assert.That(ensureRequiredSetting, Is.GreaterThan(configureMethod));
+			Assert.That(markerGate, Is.GreaterThan(ensureRequiredSetting),
+				"The required HTTP setting must be repaired even when the validation marker exists.");
+			Assert.That(oneTimeValidation, Is.GreaterThan(markerGate),
+				"Validation must remain behind the one-time marker gate.");
+			Assert.That(source, Does.Contain("[MenuItem(\"DHMGS/Project/Validate\")]"));
+			Assert.That(source, Does.Contain(
+				"[MenuItem(\"DHMGS/Project/Allow Insecure HTTP\")]"));
+			Assert.That(source, Does.Contain(
+				"TMP Essential Resources are not imported."),
+				"TMP must remain a validation warning instead of an automatic import.");
+			Assert.That(source, Does.Not.Contain("AssetDatabase.SaveAssets()"),
+				"Automatic setup must not save unrelated dirty user assets.");
+		}
+
+		[Test]
+		public void ProjectSetup_InsecureHttpConfigurationIsIdempotent()
+		{
+			InsecureHttpOption original = PlayerSettings.insecureHttpOption;
+			string markerKey = "Mnnh.Dhmgs.Tests.ProjectSetup." + System.Guid.NewGuid().ToString("N");
+			try
+			{
+				PlayerSettings.insecureHttpOption = InsecureHttpOption.NotAllowed;
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.ConfigureProject(
+					"test-version",
+					markerKey);
+				Assert.That(PlayerSettings.insecureHttpOption,
+					Is.EqualTo(InsecureHttpOption.AlwaysAllowed));
+				Assert.That(EditorPrefs.GetBool(markerKey, false), Is.True,
+					"The initial validation must consume its one-time marker.");
+
+				PlayerSettings.insecureHttpOption = InsecureHttpOption.NotAllowed;
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.ConfigureProject(
+					"test-version",
+					markerKey);
+				Assert.That(PlayerSettings.insecureHttpOption,
+					Is.EqualTo(InsecureHttpOption.AlwaysAllowed),
+					"The required setting must be repaired even after validation has run once.");
+				Assert.That(
+					global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.EnsureInsecureHttpAllowed(),
+					Is.False,
+					"A repeated setup must not rewrite an already-correct project setting.");
+			}
+			finally
+			{
+				EditorPrefs.DeleteKey(markerKey);
+				PlayerSettings.insecureHttpOption = original;
+			}
 		}
 
 		[Test]

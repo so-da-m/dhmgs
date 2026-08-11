@@ -13,7 +13,7 @@ DHMGS 결과를 Unity 에셋으로 가져오고 SMPL-X 리그에서 재생하기
 Unity Package Manager의 **Add package from git URL**에서 릴리스 태그를 지정합니다.
 
 ```text
-https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.9
+https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.10
 ```
 
 사내 private 저장소이므로 설치하는 PC의 Git 자격 증명에 저장소 읽기 권한이 있어야 합니다. Git LFS는 사용하지 않습니다.
@@ -23,7 +23,7 @@ https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.9
 Package Manager에서 **MNNH DHMGS > Samples > Full Demo > Import**를 누른 뒤 아래 씬을 엽니다.
 
 ```text
-Assets/Samples/MNNH DHMGS/0.6.9/Full Demo/Scenes/DhmgsFullDemo.unity
+Assets/Samples/MNNH DHMGS/0.6.10/Full Demo/Scenes/DhmgsFullDemo.unity
 ```
 
 Play Mode의 compact Canvas UI에서 다음 기능을 확인할 수 있습니다.
@@ -108,7 +108,7 @@ Assets/Mnnh.Dhmgs/Content/Generated/{attemptId}/
 Application.persistentDataPath/Dhmgs/{attemptId}/video.mp4
 ```
 
-프로젝트 설정은 자동 변경하지 않습니다. HTTP 허용이 필요하면 `DHMGS > Project` 메뉴의 명시적 명령을 사용합니다. Humanoid 미리보기는 별도 프로젝트 레이어를 요구하지 않습니다.
+대화형 Unity Editor에서 패키지를 설치하거나 업데이트하면 Insecure HTTP를 허용하고, 이 PC의 사용자 환경에서 프로젝트 경로와 패키지 버전 조합당 한 번 프로젝트 검사를 실행합니다. 이후 설정이 꺼진 채 Editor 도메인이 다시 로드되면 다운로드 의존성을 위해 자동 복구합니다. 이 설정은 프로젝트 전체에 영구 적용되며 패키지를 제거해도 자동 복원되지 않습니다. `DHMGS > Project > Validate`와 `DHMGS > Project > Allow Insecure HTTP` 수동 명령도 그대로 남아 있어 언제든 다시 검사하거나 설정할 수 있습니다. TMP Essential Resources가 없으면 검사 경고를 남기지만 자동 임포트하지 않습니다. Humanoid 미리보기는 별도 프로젝트 레이어를 요구하지 않습니다.
 
 ## Player에서 재생
 
@@ -144,7 +144,7 @@ DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
 
 ## 릴리스 규칙
 
-- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.6.9` ↔ `v0.6.9`.
+- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.6.10` ↔ `v0.6.10`.
 - 소비 프로젝트는 floating branch 대신 릴리스 태그에 고정합니다.
 - `Content/Generated`와 프로젝트 전용 rig/scene은 패키지 저장소에 커밋하지 않습니다.
 - 100 MiB가 넘는 단일 바이너리는 저장소에 넣지 않고 별도 콘텐츠 전달 방식을 사용합니다.
