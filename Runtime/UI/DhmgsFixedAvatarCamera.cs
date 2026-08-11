@@ -68,9 +68,15 @@ namespace Mnnh.Dhmgs
 		private Vector3 _pivotOffset;
 		private Vector3 _pan;
 		private bool _pivotLocked;
+		private float _initialYaw;
+		private float _initialPitch;
+		private float _initialDistance;
+		private bool _initialViewCaptured;
 
 		private void Awake()
 		{
+			CaptureInitialView();
+
 			// 입력(IDragHandler/IScrollHandler)이 이 RawImage에서 오므로 보이는 이미지=입력 대상으로 항상 일치시킨다.
 			RawImage output = GetComponent<RawImage>();
 			_surface.Create("DhmgsFixedAvatarCamera", output, _textureWidth, _textureHeight,
@@ -107,6 +113,30 @@ namespace Mnnh.Dhmgs
 			_pivotLocked = false;
 			_surface.SetEnabled(false);
 			_surface.Clear();
+		}
+
+		/// <summary>Restores the authored orbit, zoom, and pan, then frames the current target again.</summary>
+		public void ResetView()
+		{
+			CaptureInitialView();
+			_yaw = _initialYaw;
+			_pitch = _initialPitch;
+			_distance = _initialDistance;
+			_pan = Vector3.zero;
+			_pivotOffset = Vector3.zero;
+			Relock();
+		}
+
+		private void CaptureInitialView()
+		{
+			if (_initialViewCaptured)
+			{
+				return;
+			}
+			_initialYaw = _yaw;
+			_initialPitch = _pitch;
+			_initialDistance = _distance;
+			_initialViewCaptured = true;
 		}
 
 		/// <summary>

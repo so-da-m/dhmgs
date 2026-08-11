@@ -3,7 +3,8 @@
     "rootNamespace": "Mnnh.Dhmgs.Editor.Tests",
     "references": [
         "Mnnh.Dhmgs.Runtime",
-        "Mnnh.Dhmgs.Editor"
+        "Mnnh.Dhmgs.Editor",
+        "Mnnh.Dhmgs.UI"
     ],
     "includePlatforms": [
         "Editor"

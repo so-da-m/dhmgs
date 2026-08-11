@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.9] - 2026-08-11
+
+### Added
+
+- Added independent `RESET` controls to the SMPL-X and Unity Humanoid RenderTexture views, restoring each camera's authored orbit, zoom, pan, and automatic framing.
+
 ## [0.6.8] - 2026-08-10
 
 ### Changed

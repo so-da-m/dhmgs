@@ -5,6 +5,7 @@ using NUnit.Framework;
 
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 using SMPLXPlugin;
 
@@ -238,6 +239,116 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		}
 
 		[Test]
+		public void FixedAvatarCamera_ResetViewRestoresAuthoredHomeView()
+		{
+			GameObject root = new GameObject(
+				"Camera Reset Test",
+				typeof(RectTransform),
+				typeof(CanvasRenderer),
+				typeof(RawImage));
+			root.SetActive(false);
+			DhmgsFixedAvatarCamera camera = root.AddComponent<DhmgsFixedAvatarCamera>();
+			SetPrivateField(camera, "_yaw", 180f);
+			SetPrivateField(camera, "_pitch", 20f);
+			SetPrivateField(camera, "_distance", 3f);
+			SetPrivateField(camera, "_initialViewCaptured", false);
+			camera.ResetView();
+
+			try
+			{
+				root.SetActive(true);
+				SetPrivateField(camera, "_yaw", 247f);
+				SetPrivateField(camera, "_pitch", -31f);
+				SetPrivateField(camera, "_distance", 7f);
+				SetPrivateField(camera, "_pan", new Vector3(1f, 2f, 3f));
+				SetPrivateField(camera, "_pivotOffset", new Vector3(4f, 5f, 6f));
+				SetPrivateField(camera, "_pivotLocked", true);
+
+				camera.ResetView();
+
+				Assert.That(GetPrivateField<float>(camera, "_yaw"), Is.EqualTo(180f));
+				Assert.That(GetPrivateField<float>(camera, "_pitch"), Is.EqualTo(20f));
+				Assert.That(GetPrivateField<float>(camera, "_distance"), Is.EqualTo(3f));
+				Assert.That(GetPrivateField<Vector3>(camera, "_pan"), Is.EqualTo(Vector3.zero));
+				Assert.That(GetPrivateField<Vector3>(camera, "_pivotOffset"), Is.EqualTo(Vector3.zero));
+				Assert.That(GetPrivateField<bool>(camera, "_pivotLocked"), Is.False,
+					"Reset must unlock the old frame so the authored view is fitted again.");
+			}
+			finally
+			{
+				Object.DestroyImmediate(root);
+			}
+		}
+
+		[Test]
+		public void FullDemoPreviewPanels_HaveIndependentResetCameraButtons()
+		{
+			string scene = File.ReadAllText(Path.GetFullPath(FullDemoScenePath))
+				.Replace("\r\n", "\n");
+			string controller = GetYamlDocument(scene, 1104551308);
+			Assert.That(controller, Does.Contain(
+				"  _directPreviewCamera: {fileID: 1597169320}\n" +
+				"  _humanoidPreviewCamera: {fileID: 829823346}\n" +
+				"  _directResetCameraButton: {fileID: 1553524884}\n" +
+				"  _humanoidResetCameraButton: {fileID: 1043193371}"),
+				"Each comparison panel must reference its own reset control.");
+
+			AssertCameraResetButton(
+				scene,
+				"SMPL-X",
+				1553524883,
+				1553524884,
+				1553524885,
+				1491333803,
+				1491333804,
+				-24);
+			AssertCameraResetButton(
+				scene,
+				"Unity Humanoid",
+				1043193370,
+				1043193371,
+				1043193372,
+				1468639581,
+				1468639582,
+				-384);
+
+			Assert.That(GetYamlDocument(scene, 1593716991),
+				Does.Contain("  m_SizeDelta: {x: 230, y: 30}"));
+			Assert.That(GetYamlDocument(scene, 1426311810),
+				Does.Contain("  m_SizeDelta: {x: 230, y: 30}"));
+			const string previewSiblingOrder =
+				"  - {fileID: 1597169319}\n" +
+				"  - {fileID: 829823345}\n" +
+				"  - {fileID: 1553524883}\n" +
+				"  - {fileID: 1043193370}";
+			Assert.That(GetYamlDocument(scene, 1935608393), Does.Contain(previewSiblingOrder),
+				"Reset controls must render after both RawImages without becoming their input children.");
+
+			string source = File.ReadAllText(Path.GetFullPath(FullDemoControllerPath))
+				.Replace("\r\n", "\n");
+			Assert.That(source, Does.Contain(
+				"_directResetCameraButton?.onClick.AddListener(ResetDirectPreviewCamera);"));
+			Assert.That(source, Does.Contain(
+				"_humanoidResetCameraButton?.onClick.AddListener(ResetHumanoidPreviewCamera);"));
+			Assert.That(source, Does.Contain(
+				"_directResetCameraButton?.onClick.RemoveListener(ResetDirectPreviewCamera);"));
+			Assert.That(source, Does.Contain(
+				"_humanoidResetCameraButton?.onClick.RemoveListener(ResetHumanoidPreviewCamera);"));
+			const string directReset =
+				"\t\tprivate void ResetDirectPreviewCamera()\n" +
+				"\t\t{\n" +
+				"\t\t\t_directPreviewCamera?.ResetView();\n" +
+				"\t\t}";
+			const string humanoidReset =
+				"\t\tprivate void ResetHumanoidPreviewCamera()\n" +
+				"\t\t{\n" +
+				"\t\t\t_humanoidPreviewCamera?.ResetView();\n" +
+				"\t\t}";
+			Assert.That(source, Does.Contain(directReset));
+			Assert.That(source, Does.Contain(humanoidReset));
+		}
+
+		[Test]
 		public void FullDemoClothesSelection_PreservesDirectFraming()
 		{
 			string controller = File.ReadAllText(Path.GetFullPath(FullDemoControllerPath))
@@ -451,6 +562,49 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				label + " preview must use the shared camera preset with its rig-specific front-facing yaw.");
 		}
 
+		private static void AssertCameraResetButton(
+			string scene,
+			string label,
+			long rectId,
+			long buttonId,
+			long imageId,
+			long labelRectId,
+			long labelTextId,
+			int y)
+		{
+			string rect = GetYamlDocument(scene, rectId);
+			const long canvasRectId = 1935608393;
+			string expectedRect =
+				$"  m_Father: {{fileID: {canvasRectId}}}\n" +
+				"  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}\n" +
+				"  m_AnchorMin: {x: 1, y: 1}\n" +
+				"  m_AnchorMax: {x: 1, y: 1}\n" +
+				$"  m_AnchoredPosition: {{x: -26, y: {y}}}\n" +
+				"  m_SizeDelta: {x: 68, y: 22}\n" +
+				"  m_Pivot: {x: 1, y: 1}";
+			Assert.That(rect, Does.Contain(expectedRect),
+				label + " reset must overlay the caption without becoming a camera-input child.");
+
+			string button = GetYamlDocument(scene, buttonId);
+			Assert.That(button, Does.Contain("  m_Navigation:\n    m_Mode: 0"));
+			Assert.That(button, Does.Contain($"  m_TargetGraphic: {{fileID: {imageId}}}"));
+			Assert.That(button, Does.Contain("  m_OnClick:\n    m_PersistentCalls:\n      m_Calls: []"),
+				label + " reset must use the controller's lifecycle-safe runtime listener.");
+
+			string image = GetYamlDocument(scene, imageId);
+			Assert.That(image, Does.Contain("  m_Color: {r: 0.17, g: 0.42, b: 0.66, a: 1}"));
+			Assert.That(image, Does.Contain("  m_RaycastTarget: 1"));
+
+			string labelRect = GetYamlDocument(scene, labelRectId);
+			Assert.That(labelRect, Does.Contain($"  m_Father: {{fileID: {rectId}}}"));
+			Assert.That(labelRect, Does.Contain("  m_SizeDelta: {x: 0, y: 0}"));
+
+			string text = GetYamlDocument(scene, labelTextId);
+			Assert.That(text, Does.Contain("  m_RaycastTarget: 0"));
+			Assert.That(text, Does.Contain("    m_FontSize: 12\n    m_FontStyle: 1"));
+			Assert.That(text, Does.EndWith("  m_Text: RESET"));
+		}
+
 		private static void AssertSliderHandle(
 			string scene,
 			string label,
@@ -624,6 +778,15 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 			Assert.That(field, Is.Not.Null, "Missing private field " + fieldName + ".");
 			field.SetValue(target, value);
+		}
+
+		private static T GetPrivateField<T>(object target, string fieldName)
+		{
+			System.Reflection.FieldInfo field = target.GetType().GetField(
+				fieldName,
+				System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+			Assert.That(field, Is.Not.Null, "Missing private field " + fieldName + ".");
+			return (T)field.GetValue(target);
 		}
 	}
 }

@@ -26,6 +26,8 @@ namespace Mnnh.Dhmgs.Samples
 		[SerializeField] private Camera _previewCamera;
 		[SerializeField] private DhmgsFixedAvatarCamera _directPreviewCamera;
 		[SerializeField] private DhmgsFixedAvatarCamera _humanoidPreviewCamera;
+		[SerializeField] private Button _directResetCameraButton;
+		[SerializeField] private Button _humanoidResetCameraButton;
 
 		[Header("Fetch")]
 		[SerializeField] private InputField _attemptIdInput;
@@ -67,6 +69,8 @@ namespace Mnnh.Dhmgs.Samples
 		private void OnEnable()
 		{
 			_fetchButton?.onClick.AddListener(Fetch);
+			_directResetCameraButton?.onClick.AddListener(ResetDirectPreviewCamera);
+			_humanoidResetCameraButton?.onClick.AddListener(ResetHumanoidPreviewCamera);
 			_avatarDropdown?.onValueChanged.AddListener(OnAvatarChanged);
 			_clothesDropdown?.onValueChanged.AddListener(OnClothesChanged);
 			_avatarOpacitySlider?.onValueChanged.AddListener(OnAvatarOpacityChanged);
@@ -114,6 +118,8 @@ namespace Mnnh.Dhmgs.Samples
 		private void OnDisable()
 		{
 			_fetchButton?.onClick.RemoveListener(Fetch);
+			_directResetCameraButton?.onClick.RemoveListener(ResetDirectPreviewCamera);
+			_humanoidResetCameraButton?.onClick.RemoveListener(ResetHumanoidPreviewCamera);
 			_avatarDropdown?.onValueChanged.RemoveListener(OnAvatarChanged);
 			_clothesDropdown?.onValueChanged.RemoveListener(OnClothesChanged);
 			_avatarOpacitySlider?.onValueChanged.RemoveListener(OnAvatarOpacityChanged);
@@ -296,6 +302,16 @@ namespace Mnnh.Dhmgs.Samples
 		{
 			_directPreviewCamera?.Relock();
 			_humanoidPreviewCamera?.Relock();
+		}
+
+		private void ResetDirectPreviewCamera()
+		{
+			_directPreviewCamera?.ResetView();
+		}
+
+		private void ResetHumanoidPreviewCamera()
+		{
+			_humanoidPreviewCamera?.ResetView();
 		}
 
 		private void OnClothesChanged(int value)
