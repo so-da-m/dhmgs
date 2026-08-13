@@ -23,4 +23,4 @@ This sample references only assets in this sample folder and in the MNNH DHMGS p
 
 Before Fetch, the upper view shows the active SMPL-X player and the lower view stays empty. After Fetch, the lower view plays the freshly baked Humanoid in-place clip on YBot through a standard Unity Animator/Playable path. In a Player build, Fetch, baking, the Editor comparison preview, and video controls are disabled; already generated clips and motion assets remain build-safe and can be assigned to runtime Animators or players.
 
-Use `DHMGS > Importer` when you need to choose a different Generic or Humanoid bake source.
+Use `DHMGS > Importer` when you need a different compatible SMPL-X bake source or output set.

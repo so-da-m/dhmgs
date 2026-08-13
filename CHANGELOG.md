@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] - 2026-08-13
+
+- Added `DHMGS > 새 SMPLX 아바타 등록...`: validate an artist FBX against the official SMPL-X skeleton subset, preserve fixed-shape meshes and company blendshapes in a project-owned wrapper prefab, and optionally append it idempotently to the imported Full Demo avatar roster.
+- Added `DHMGS > 등록된 SMPLX 아바타 제거...`: remove a user wrapper from the Full Demo roster and scene in one confirmed operation, move only the generated wrapper prefab to trash, and clean registrations whose wrapper file is already missing while preserving source FBXs and dependencies.
+- Rejected registered FBXs whose canonical SMPL-X `root` does not resolve to unit scale, preventing retained DCC 100x conversion nodes from shifting direct playback vertically.
+- Replaced the composable public pipeline/writer surface with one validated `DhmgsImportService` job contract used by the Importer window and Full Demo.
+- Replaced separate Generic/Humanoid rig fields with one explicitly validated SMPL-X bake source; YBot remains a retarget playback target only.
+- Added bounded archive/schema validation (including the server's optional root `identity.json` metadata), canonical source keys, project-local preview caching, cooperative cancellation during baking, and monotonic job progress.
+- Prepared all requested clips before a short non-cancellable publish, preserved existing Unity asset GUIDs, removed stale disabled outputs, and restored prior serialized assets after caught publish failures.
+- Removed raw manifest/sequence files from build-facing generated folders and made requested motion/clip outputs fail as one job instead of reporting partial success.
+- Kept Full Demo video preparation and its timeout progressing while Unity is unfocused, restoring the consuming project's background-run behavior after the bounded wait.
+
 ## [0.6.10] - 2026-08-11
 
 ### Added

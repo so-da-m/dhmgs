@@ -1,8 +1,8 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.6.10",
+  "version": "0.7.0",
   "displayName": "MNNH DHMGS",
-  "description": "Editor-only DHMGS download, Generic/Humanoid baking, and retarget preview with build-safe playback.",
+  "description": "Editor-only DHMGS import, SMPL-X avatar registration, Generic/Humanoid baking, and retarget preview with build-safe playback.",
   "unity": "6000.5",
   "unityRelease": "1f1",
   "license": "See LICENSE.md file",

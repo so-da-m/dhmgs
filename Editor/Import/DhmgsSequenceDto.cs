@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 using Mnnh.Dhmgs.ThirdParty.SimpleJson;
 
@@ -22,8 +23,12 @@ namespace Mnnh.Dhmgs.Editor
 	{
 		public SmplxFrameDto[] Frames;
 
-		public static DhmgsSequenceDto Parse(string json, int expectedFrameCount)
+		public static DhmgsSequenceDto Parse(
+			string json,
+			int expectedFrameCount,
+			CancellationToken cancellationToken = default)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			if (string.IsNullOrWhiteSpace(json))
 			{
 				throw new DhmgsImportException(DhmgsImportStage.Decoding, "sequence.json is empty.");
@@ -32,11 +37,26 @@ namespace Mnnh.Dhmgs.Editor
 			try
 			{
 				JSONNode root = JSON.Parse(json);
-				JSONNode framesNode = root?["frames"];
-				int frameCount = framesNode != null ? framesNode.Count : 0;
+				cancellationToken.ThrowIfCancellationRequested();
+				if (root == null || !root.IsObject)
+				{
+					throw new FormatException("The sequence root must be an object.");
+				}
+				if (!root.HasKey("frames") || !root["frames"].IsArray)
+				{
+					throw new FormatException("sequence.frames must be an array.");
+				}
+
+				JSONNode framesNode = root["frames"];
+				int frameCount = framesNode.Count;
 				if (frameCount == 0)
 				{
 					throw new FormatException("sequence.json contains no frames.");
+				}
+				if (frameCount > DhmgsManifestDto.MaxFrameCount)
+				{
+					throw new FormatException(
+						$"sequence.json contains {frameCount} frames; the limit is {DhmgsManifestDto.MaxFrameCount}.");
 				}
 				if (expectedFrameCount > 0 && frameCount != expectedFrameCount)
 				{
@@ -46,21 +66,50 @@ namespace Mnnh.Dhmgs.Editor
 				SmplxFrameDto[] frames = new SmplxFrameDto[frameCount];
 				for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
 				{
+					cancellationToken.ThrowIfCancellationRequested();
 					JSONNode node = framesNode[frameIndex];
+					if (node == null || !node.IsObject)
+					{
+						throw new FormatException($"Frame {frameIndex} must be an object.");
+					}
+
 					frames[frameIndex] = new SmplxFrameDto
 					{
-						Root = RequireVector3(node["root_pose"], frameIndex, "root_pose"),
-						Body = RequireVector3Array(node["body_pose"], 21, frameIndex, "body_pose"),
-						Jaw = RequireVector3(node["jaw_pose"], frameIndex, "jaw_pose"),
-						LeftEye = RequireVector3(node["left_eye_pose"], frameIndex, "left_eye_pose"),
-						RightEye = RequireVector3(node["right_eye_pose"], frameIndex, "right_eye_pose"),
-						LeftHand = RequireVector3Array(node["left_hand_pose"], 15, frameIndex, "left_hand_pose"),
-						RightHand = RequireVector3Array(node["right_hand_pose"], 15, frameIndex, "right_hand_pose"),
-						Translation = RequireVector3(node["translation"], frameIndex, "translation"),
+						Root = RequireVector3(node, "root_pose", frameIndex, "root_pose"),
+						Body = RequireVector3Array(
+							node,
+							"body_pose",
+							21,
+							frameIndex,
+							"body_pose",
+							cancellationToken),
+						Jaw = RequireVector3(node, "jaw_pose", frameIndex, "jaw_pose"),
+						LeftEye = RequireVector3(node, "left_eye_pose", frameIndex, "left_eye_pose"),
+						RightEye = RequireVector3(node, "right_eye_pose", frameIndex, "right_eye_pose"),
+						LeftHand = RequireVector3Array(
+							node,
+							"left_hand_pose",
+							15,
+							frameIndex,
+							"left_hand_pose",
+							cancellationToken),
+						RightHand = RequireVector3Array(
+							node,
+							"right_hand_pose",
+							15,
+							frameIndex,
+							"right_hand_pose",
+							cancellationToken),
+						Translation = RequireVector3(node, "translation", frameIndex, "translation"),
 					};
 				}
 
+				cancellationToken.ThrowIfCancellationRequested();
 				return new DhmgsSequenceDto { Frames = frames };
+			}
+			catch (OperationCanceledException)
+			{
+				throw;
 			}
 			catch (DhmgsImportException)
 			{
@@ -72,30 +121,85 @@ namespace Mnnh.Dhmgs.Editor
 			}
 		}
 
-		private static Vector3 RequireVector3(JSONNode node, int frameIndex, string label)
+		private static Vector3 RequireVector3(
+			JSONNode parent,
+			string key,
+			int frameIndex,
+			string label)
 		{
-			int count = node != null ? node.Count : 0;
-			if (count < 3)
+			if (!parent.HasKey(key))
 			{
-				throw new FormatException($"Frame {frameIndex} {label}: expected [3], got [{count}].");
+				throw new FormatException($"Frame {frameIndex} {label} is required.");
 			}
-			return new Vector3(node[0].AsFloat, node[1].AsFloat, node[2].AsFloat);
+			return RequireVector3(parent[key], frameIndex, label);
 		}
 
-		private static Vector3[] RequireVector3Array(JSONNode node, int expectedCount, int frameIndex, string label)
+		private static Vector3 RequireVector3(JSONNode node, int frameIndex, string label)
 		{
-			int count = node != null ? node.Count : 0;
-			if (count != expectedCount)
+			if (node == null || !node.IsArray)
 			{
-				throw new FormatException($"Frame {frameIndex} {label}: expected [{expectedCount}][3], got [{count}].");
+				throw new FormatException($"Frame {frameIndex} {label} must be an array.");
+			}
+			if (node.Count != 3)
+			{
+				throw new FormatException($"Frame {frameIndex} {label}: expected [3], got [{node.Count}].");
 			}
 
-			Vector3[] values = new Vector3[count];
-			for (int index = 0; index < count; index++)
+			return new Vector3(
+				RequireFiniteFloat(node[0], frameIndex, $"{label}[0]"),
+				RequireFiniteFloat(node[1], frameIndex, $"{label}[1]"),
+				RequireFiniteFloat(node[2], frameIndex, $"{label}[2]"));
+		}
+
+		private static Vector3[] RequireVector3Array(
+			JSONNode parent,
+			string key,
+			int expectedCount,
+			int frameIndex,
+			string label,
+			CancellationToken cancellationToken)
+		{
+			if (!parent.HasKey(key))
 			{
+				throw new FormatException($"Frame {frameIndex} {label} is required.");
+			}
+
+			JSONNode node = parent[key];
+			if (!node.IsArray)
+			{
+				throw new FormatException($"Frame {frameIndex} {label} must be an array.");
+			}
+			if (node.Count != expectedCount)
+			{
+				throw new FormatException(
+					$"Frame {frameIndex} {label}: expected [{expectedCount}][3], got [{node.Count}].");
+			}
+
+			Vector3[] values = new Vector3[node.Count];
+			for (int index = 0; index < node.Count; index++)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
 				values[index] = RequireVector3(node[index], frameIndex, $"{label}[{index}]");
 			}
 			return values;
+		}
+
+		private static float RequireFiniteFloat(JSONNode node, int frameIndex, string label)
+		{
+			if (node == null || !node.IsNumber)
+			{
+				throw new FormatException($"Frame {frameIndex} {label} must be a number.");
+			}
+
+			double value = node.AsDouble;
+			if (double.IsNaN(value)
+				|| double.IsInfinity(value)
+				|| value < -float.MaxValue
+				|| value > float.MaxValue)
+			{
+				throw new FormatException($"Frame {frameIndex} {label} must be a finite float.");
+			}
+			return (float)value;
 		}
 	}
 }

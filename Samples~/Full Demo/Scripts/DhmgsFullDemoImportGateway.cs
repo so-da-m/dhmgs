@@ -79,7 +79,7 @@ namespace Mnnh.Dhmgs.Samples
 			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
-			IProgress<DhmgsSampleImportProgress> progress,
+			Action<DhmgsSampleImportProgress> onProgress,
 			CancellationToken cancellationToken);
 
 		private static ImportHandler _importHandler;
@@ -119,7 +119,7 @@ namespace Mnnh.Dhmgs.Samples
 			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
-			IProgress<DhmgsSampleImportProgress> progress,
+			Action<DhmgsSampleImportProgress> onProgress,
 			CancellationToken cancellationToken)
 		{
 			if (_importHandler == null)
@@ -131,7 +131,7 @@ namespace Mnnh.Dhmgs.Samples
 				throw new ArgumentNullException(nameof(context));
 			}
 
-			return _importHandler(context, baseUrl, attemptId, progress, cancellationToken);
+			return _importHandler(context, baseUrl, attemptId, onProgress, cancellationToken);
 		}
 
 		public static void SetVideoOpacity(DhmgsSampleImportContext context, float opacity)

@@ -22,6 +22,10 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			PackageRoot + "/Samples~/Full Demo/Scenes/DhmgsFullDemo.unity";
 		private static readonly string FullDemoControllerPath =
 			PackageRoot + "/Samples~/Full Demo/Scripts/DhmgsFullDemoController.cs";
+		private static readonly string FullDemoEditorPreviewPath =
+			PackageRoot + "/Samples~/Full Demo/Scripts/DhmgsFullDemoEditorPreview.cs";
+		private static readonly string FullDemoImportBridgePath =
+			PackageRoot + "/Samples~/Full Demo/Editor/DhmgsFullDemoEditorImportBridge.cs";
 		private static readonly string ProjectValidatorPath =
 			PackageRoot + "/Editor/DhmgsProjectValidator.cs";
 
@@ -234,7 +238,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		[Test]
 		public void ProjectSetup_AutoConfiguresOncePerPackageVersionAndKeepsManualCommands()
 		{
-			const string currentVersion = "0.6.10";
+			const string currentVersion = "0.7.0";
 			string projectA = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectA");
 			string projectB = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectB");
 			string first = global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
@@ -479,6 +483,40 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"\t\t}";
 			Assert.That(controller, Does.Contain(clothesHandler),
 				"Changing optional clothes must not refit the direct camera at a different animation pose.");
+		}
+
+		[Test]
+		public void FullDemoVideoPreparation_RemainsBoundedWhenUnityLosesFocus()
+		{
+			string bridge = File.ReadAllText(Path.GetFullPath(FullDemoImportBridgePath))
+				.Replace("\r\n", "\n");
+			const string backgroundGuard =
+				"bool previousRunInBackground = Application.runInBackground;\n" +
+				"\t\t\t\ttry\n" +
+				"\t\t\t\t{\n";
+			Assert.That(bridge, Does.Contain(backgroundGuard));
+			Assert.That(bridge, Does.Contain(
+				"\t\t\t\t\tApplication.runInBackground = true;\n"));
+			const string backgroundRestore =
+				"\t\t\t\tfinally\n" +
+				"\t\t\t\t{\n" +
+				"\t\t\t\t\tApplication.runInBackground = previousRunInBackground;\n" +
+				"\t\t\t\t}";
+			Assert.That(bridge, Does.Contain(backgroundRestore),
+				"The Editor-only focus override must be restored on success, failure, and cancellation.");
+
+			string preview = File.ReadAllText(Path.GetFullPath(FullDemoEditorPreviewPath))
+				.Replace("\r\n", "\n");
+			Assert.That(preview, Does.Contain(
+				"new TaskCompletionSource<IDhmgsPlaybackClock>(\n" +
+				"\t\t\t\t\tTaskCreationOptions.RunContinuationsAsynchronously);"));
+			Assert.That(preview, Does.Contain(
+				"if (ReferenceEquals(_clockCompletion, completion))\n" +
+				"\t\t\t{\n" +
+				"\t\t\t\t_clockMonitor = monitor;\n" +
+				"\t\t\t}\n" +
+				"\t\t\treturn completion.Task;"),
+				"A synchronously completed activation must not revive stale coroutine state or lose its Task.");
 		}
 
 		[Test]

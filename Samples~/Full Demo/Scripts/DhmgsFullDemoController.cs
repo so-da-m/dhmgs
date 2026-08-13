@@ -163,14 +163,13 @@ namespace Mnnh.Dhmgs.Samples
 			SetFetchInteractable(false);
 			SetProgress(0f, $"[{attemptId}] Downloading...");
 			AppendLog($"[{attemptId}] Fetch started.");
-			IProgress<DhmgsSampleImportProgress> progress =
-				new Progress<DhmgsSampleImportProgress>(value =>
+			Action<DhmgsSampleImportProgress> onProgress = value =>
+			{
+				if (OwnsOperation(operation, cancellation))
 				{
-					if (OwnsOperation(operation, cancellation))
-					{
-						OnImportProgress(value);
-					}
-				});
+					OnImportProgress(value);
+				}
+			};
 
 			try
 			{
@@ -178,7 +177,7 @@ namespace Mnnh.Dhmgs.Samples
 					_importContext,
 					_defaultBaseUrl,
 					attemptId,
-					progress,
+					onProgress,
 					cancellation.Token);
 				if (!OwnsOperation(operation, cancellation))
 				{

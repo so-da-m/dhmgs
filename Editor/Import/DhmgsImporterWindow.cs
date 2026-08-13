@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Threading;
 
 using UnityEditor;
@@ -7,90 +10,120 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	public sealed class DhmgsImporterWindow : EditorWindow
+	internal sealed class DhmgsImporterWindow : EditorWindow
 	{
-		private const string BaseUrlPrefKey = "Dhmgs.Importer.BaseUrl";
-		private const string OutputRootPrefKey = "Dhmgs.Importer.OutputRoot";
-		private const string SaveVideoPrefKey = "Dhmgs.Importer.SavePreviewVideo";
-		private const string BakeGenericPrefKey = "Dhmgs.Importer.BakeGeneric";
-		private const string BakeHumanoidPrefKey = "Dhmgs.Importer.BakeHumanoid";
-		private const string GenericRigPrefKey = "Dhmgs.Importer.GenericRigGuid";
-		private const string HumanoidRigPrefKey = "Dhmgs.Importer.HumanoidRigGuid";
-
 		private string _baseUrl;
 		private string _outputRoot;
-		private string _attemptIdText = string.Empty;
-		private bool _savePreviewVideo;
+		private string _attemptIdText;
+		private GameObject _smplxBakeSource;
 		private bool _bakeGeneric;
 		private bool _bakeHumanoid;
-		private GameObject _genericRig;
-		private GameObject _humanoidRig;
+		private bool _cachePreviewVideo;
 
 		private string _status = "Enter an attempt ID and select Import.";
 		private MessageType _statusType = MessageType.Info;
-		private string _lastSavedAssetPath;
 		private float _progress;
 		private bool _running;
+		private bool _canCancel;
+		private bool _cancelRequested;
+		private bool _terminal;
+		private Guid _activeJobId;
+		private long _activeRevision;
 		private CancellationTokenSource _cancellation;
+		private DhmgsImportJobResult _lastResult;
 
 		[MenuItem("DHMGS/Importer")]
 		private static void Open()
 		{
 			DhmgsImporterWindow window = GetWindow<DhmgsImporterWindow>();
 			window.titleContent = new GUIContent("DHMGS Importer");
-			window.minSize = new Vector2(420f, 390f);
+			window.minSize = new Vector2(440f, 430f);
 			window.Show();
 		}
 
 		private void OnEnable()
 		{
-			_baseUrl = EditorPrefs.GetString(BaseUrlPrefKey, DhmgsImportPipeline.DefaultBaseUrl);
-			_outputRoot = EditorPrefs.GetString(OutputRootPrefKey, DhmgsAssetWriter.DefaultOutputRoot);
-			_savePreviewVideo = EditorPrefs.GetBool(SaveVideoPrefKey, false);
-			_bakeGeneric = EditorPrefs.GetBool(BakeGenericPrefKey, true);
-			_bakeHumanoid = EditorPrefs.GetBool(BakeHumanoidPrefKey, true);
-			_genericRig = LoadRigPref(GenericRigPrefKey);
-			_humanoidRig = LoadRigPref(HumanoidRigPrefKey);
+			DhmgsImporterSettings settings = DhmgsImporterSettings.instance;
+			_baseUrl = settings.BaseUrl;
+			_outputRoot = settings.OutputRoot;
+			_attemptIdText = settings.AttemptIdText;
+			_smplxBakeSource = settings.LoadSmplxBakeSource();
+			_bakeGeneric = settings.BakeGeneric;
+			_bakeHumanoid = settings.BakeHumanoid;
+			_cachePreviewVideo = settings.CachePreviewVideo;
 		}
 
 		private void OnDisable()
 		{
 			_cancellation?.Cancel();
-			_cancellation?.Dispose();
-			_cancellation = null;
 		}
 
 		private void OnGUI()
 		{
-			EditorGUILayout.LabelField("Source", EditorStyles.boldLabel);
-			StringPref(ref _baseUrl, "Base URL", BaseUrlPrefKey);
-			StringPref(ref _outputRoot, "Output Root", OutputRootPrefKey);
-			_attemptIdText = EditorGUILayout.TextField("Attempt ID", _attemptIdText);
-			BoolPref(ref _savePreviewVideo, "Save preview video outside Assets", SaveVideoPrefKey);
+			DhmgsImportValidation validation;
+			DhmgsImportJobRequest request;
 
-			EditorGUILayout.Space();
-			EditorGUILayout.LabelField("Animation Clip Baking", EditorStyles.boldLabel);
-			RigPref(ref _genericRig, "Generic SMPL-X Rig", GenericRigPrefKey);
-			RigPref(ref _humanoidRig, "Humanoid Rig", HumanoidRigPrefKey);
-			BoolPref(ref _bakeGeneric, "Bake Generic Clip", BakeGenericPrefKey);
-			BoolPref(ref _bakeHumanoid, "Bake Humanoid Clips", BakeHumanoidPrefKey);
+			using (new EditorGUI.DisabledScope(_running))
+			{
+				using EditorGUI.ChangeCheckScope change = new EditorGUI.ChangeCheckScope();
+				EditorGUILayout.LabelField("Source", EditorStyles.boldLabel);
+				_baseUrl = EditorGUILayout.TextField("Base URL", _baseUrl);
+				_outputRoot = EditorGUILayout.TextField("Output Root", _outputRoot);
+				_attemptIdText = EditorGUILayout.TextField("Attempt ID", _attemptIdText);
+
+				EditorGUILayout.Space();
+				EditorGUILayout.LabelField("Animation Clip Baking", EditorStyles.boldLabel);
+				_smplxBakeSource = (GameObject)EditorGUILayout.ObjectField(
+					"SMPL-X Bake Source",
+					_smplxBakeSource,
+					typeof(GameObject),
+					false);
+				_bakeGeneric = EditorGUILayout.Toggle("Bake Generic Clip", _bakeGeneric);
+				_bakeHumanoid = EditorGUILayout.Toggle("Bake Humanoid Clips", _bakeHumanoid);
+				_cachePreviewVideo = EditorGUILayout.Toggle(
+					"Cache Preview Video If Present",
+					_cachePreviewVideo);
+
+				if (change.changed)
+				{
+					DhmgsImporterSettings.instance.Store(
+						_baseUrl,
+						_outputRoot,
+						_attemptIdText,
+						_smplxBakeSource,
+						_bakeGeneric,
+						_bakeHumanoid,
+						_cachePreviewVideo);
+				}
+			}
+
+			request = BuildRequest();
+			validation = DhmgsImportService.Validate(request);
+			DrawValidation(validation);
+			if (!_running && DhmgsImportService.IsBusy)
+			{
+				EditorGUILayout.HelpBox(
+					"Another DHMGS import is already running.",
+					MessageType.Warning);
+			}
 
 			EditorGUILayout.Space();
 			using (new EditorGUILayout.HorizontalScope())
 			{
-				using (new EditorGUI.DisabledScope(_running))
+				bool canImport = !_running && !DhmgsImportService.IsBusy && validation.CanRun;
+				using (new EditorGUI.DisabledScope(!canImport))
 				{
 					if (GUILayout.Button("Import", GUILayout.Height(28f)))
 					{
-						BeginImport();
+						BeginImport(request);
 					}
 				}
 
-				using (new EditorGUI.DisabledScope(!_running))
+				using (new EditorGUI.DisabledScope(!_running || !_canCancel || _cancelRequested))
 				{
 					if (GUILayout.Button("Cancel", GUILayout.Height(28f), GUILayout.Width(80f)))
 					{
-						_cancellation?.Cancel();
+						RequestCancellation();
 					}
 				}
 			}
@@ -103,148 +136,287 @@ namespace Mnnh.Dhmgs.Editor
 
 			EditorGUILayout.Space();
 			EditorGUILayout.HelpBox(_status, _statusType);
-
-			if (!string.IsNullOrEmpty(_lastSavedAssetPath) && GUILayout.Button("Select Imported Motion"))
-			{
-				UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(_lastSavedAssetPath);
-				Selection.activeObject = asset;
-				EditorGUIUtility.PingObject(asset);
-			}
+			DrawResultButtons();
 		}
 
-		private async void BeginImport()
+		private DhmgsImportJobRequest BuildRequest()
+		{
+			int attemptId = int.TryParse(_attemptIdText, out int parsedAttemptId)
+				? parsedAttemptId
+				: -1;
+			DhmgsBakeOutputs outputs = DhmgsBakeOutputs.None;
+			if (_bakeGeneric)
+			{
+				outputs |= DhmgsBakeOutputs.Generic;
+			}
+			if (_bakeHumanoid)
+			{
+				outputs |= DhmgsBakeOutputs.Humanoid;
+			}
+
+			return new DhmgsImportJobRequest(
+				_baseUrl,
+				attemptId,
+				_outputRoot,
+				_smplxBakeSource,
+				outputs,
+				_cachePreviewVideo ? DhmgsVideoPolicy.CacheIfPresent : DhmgsVideoPolicy.Ignore);
+		}
+
+		private async void BeginImport(DhmgsImportJobRequest request)
 		{
 			if (_running)
 			{
 				return;
 			}
-			if (!int.TryParse(_attemptIdText, out int attemptId) || attemptId < 0)
-			{
-				SetStatus("Attempt ID must be a non-negative integer.", MessageType.Error);
-				return;
-			}
 
+			CancellationTokenSource cancellation = new CancellationTokenSource();
+			_cancellation = cancellation;
 			_running = true;
+			_canCancel = true;
+			_cancelRequested = false;
+			_terminal = false;
+			_activeJobId = Guid.Empty;
+			_activeRevision = 0;
 			_progress = 0f;
-			_lastSavedAssetPath = null;
-			_cancellation = new CancellationTokenSource();
-			IProgress<DhmgsImportProgress> progress = new Progress<DhmgsImportProgress>(OnProgress);
+			_lastResult = null;
+			SetStatus("Starting import...", MessageType.Info);
 
 			try
 			{
-				DhmgsImportResult import = await DhmgsImportPipeline.ImportAsync(
-					new DhmgsImportRequest(_baseUrl, attemptId),
-					progress,
-					_cancellation.Token);
-
-				DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
-					import,
-					new DhmgsAssetWriteOptions
-					{
-						OutputRoot = _outputRoot,
-						GenericRig = _genericRig,
-						HumanoidRig = _humanoidRig,
-						BakeGenericClip = _bakeGeneric,
-						BakeHumanoidClips = _bakeHumanoid,
-					},
-					progress);
-
-				string videoNote = string.Empty;
-				if (_savePreviewVideo && import.VideoBytes != null)
+				DhmgsImportJobResult result = await DhmgsImportService.ImportAsync(
+					request,
+					OnProgress,
+					cancellation.Token);
+				if (!OwnsJob(result.JobId))
 				{
-					videoNote = $"\nPreview video: {DhmgsImportPipeline.WritePreviewVideo(import)}";
+					return;
 				}
 
-				float leftDiff = DhmgsHandMeanReference.MaxDiff(import.Manifest.LeftHandOffset, DhmgsHandMeanReference.LeftHandMean);
-				float rightDiff = DhmgsHandMeanReference.MaxDiff(import.Manifest.RightHandOffset, DhmgsHandMeanReference.RightHandMean);
-				_lastSavedAssetPath = written.MotionAssetPath;
-				SetStatus($"{written.Summary}{videoNote}\nHand offset max diff: L={leftDiff:F4}, R={rightDiff:F4}", MessageType.Info);
-
-				Selection.activeObject = import.Motion;
-				EditorGUIUtility.PingObject(import.Motion);
+				_terminal = true;
+				_canCancel = false;
+				_progress = 1f;
+				_lastResult = result;
+				SetStatus(BuildResultSummary(result), ResultMessageType(result.Diagnostics));
+				SelectAsset(result.Motion);
 			}
 			catch (OperationCanceledException)
 			{
-				SetStatus("Import cancelled.", MessageType.Warning);
+				_terminal = true;
+				_canCancel = false;
+				if (this != null)
+				{
+					SetStatus("Import cancelled.", MessageType.Warning);
+				}
 			}
 			catch (Exception exception)
 			{
+				_terminal = true;
+				_canCancel = false;
 				Debug.LogException(exception);
-				SetStatus(exception.Message, MessageType.Error);
+				if (this != null)
+				{
+					SetStatus(exception.Message, MessageType.Error);
+				}
 			}
 			finally
 			{
-				_running = false;
-				_progress = 0f;
-				_cancellation?.Dispose();
-				_cancellation = null;
-				Repaint();
+				cancellation.Dispose();
+				if (ReferenceEquals(_cancellation, cancellation))
+				{
+					_cancellation = null;
+					_running = false;
+					_canCancel = false;
+				}
+				if (this != null)
+				{
+					Repaint();
+				}
 			}
 		}
 
-		private void OnProgress(DhmgsImportProgress progress)
+		private void RequestCancellation()
 		{
-			_progress = progress.Stage switch
+			if (!_running || !_canCancel || _cancelRequested)
 			{
-				DhmgsImportStage.Downloading => progress.Value * 0.65f,
-				DhmgsImportStage.Extracting => 0.65f + progress.Value * 0.1f,
-				DhmgsImportStage.Decoding => 0.75f + progress.Value * 0.1f,
-				DhmgsImportStage.WritingAssets => 0.85f + progress.Value * 0.15f,
-				_ => progress.Value,
+				return;
+			}
+
+			_cancelRequested = true;
+			_canCancel = false;
+			SetStatus("Cancelling import...", MessageType.Warning);
+			_cancellation?.Cancel();
+		}
+
+		private void OnProgress(DhmgsImportJobProgress progress)
+		{
+			if (!_running || _terminal || _cancelRequested)
+			{
+				return;
+			}
+
+			if (_activeJobId == Guid.Empty)
+			{
+				_activeJobId = progress.JobId;
+				_activeRevision = progress.Revision;
+			}
+			if (progress.JobId != _activeJobId || progress.Revision != _activeRevision)
+			{
+				return;
+			}
+
+			_progress = progress.OverallProgress;
+			_canCancel = progress.CanCancel;
+			SetStatus(progress.Message, MessageType.Info);
+		}
+
+		private bool OwnsJob(Guid jobId)
+		{
+			return this != null && _running && _activeJobId != Guid.Empty && jobId == _activeJobId;
+		}
+
+		private void DrawValidation(DhmgsImportValidation validation)
+		{
+			if (_running || validation == null || validation.Diagnostics.Count == 0)
+			{
+				return;
+			}
+
+			StringBuilder message = new StringBuilder();
+			MessageType type = MessageType.Info;
+			foreach (DhmgsImportDiagnostic diagnostic in validation.Diagnostics)
+			{
+				if (message.Length > 0)
+				{
+					message.AppendLine();
+				}
+				message.Append(diagnostic.Message);
+				type = Max(type, ToMessageType(diagnostic.Severity));
+			}
+			EditorGUILayout.HelpBox(message.ToString(), type);
+		}
+
+		private void DrawResultButtons()
+		{
+			if (_lastResult == null)
+			{
+				return;
+			}
+
+			EditorGUILayout.Space();
+			EditorGUILayout.LabelField("Imported Assets", EditorStyles.boldLabel);
+			DrawAssetButton("Select Motion", _lastResult.Motion);
+			DrawAssetButton("Select Generic Clip", _lastResult.GenericClip);
+			DrawAssetButton("Select Humanoid In-Place Clip", _lastResult.HumanoidInPlaceClip);
+			DrawAssetButton("Select Humanoid Root Motion Clip", _lastResult.HumanoidRootMotionClip);
+
+			string folderPath = ImportFolderPath(_lastResult.MotionAssetPath);
+			DefaultAsset folder = string.IsNullOrEmpty(folderPath)
+				? null
+				: AssetDatabase.LoadAssetAtPath<DefaultAsset>(folderPath);
+			DrawAssetButton("Select Import Folder", folder);
+		}
+
+		private static void DrawAssetButton(string label, UnityEngine.Object asset)
+		{
+			using (new EditorGUI.DisabledScope(asset == null))
+			{
+				if (GUILayout.Button(label))
+				{
+					SelectAsset(asset);
+				}
+			}
+		}
+
+		private static void SelectAsset(UnityEngine.Object asset)
+		{
+			if (asset == null)
+			{
+				return;
+			}
+			Selection.activeObject = asset;
+			EditorGUIUtility.PingObject(asset);
+		}
+
+		private static string ImportFolderPath(string motionAssetPath)
+		{
+			return string.IsNullOrEmpty(motionAssetPath)
+				? string.Empty
+				: Path.GetDirectoryName(motionAssetPath)?.Replace('\\', '/');
+		}
+
+		private static string BuildResultSummary(DhmgsImportJobResult result)
+		{
+			StringBuilder summary = new StringBuilder();
+			summary.Append('[').Append(result.Motion.attemptId).Append("] Saved ")
+				.Append(result.Motion.frameCount).Append(" frames @ ")
+				.Append(result.Motion.fps.ToString("F2")).AppendLine(" fps");
+			summary.AppendLine(result.MotionAssetPath);
+			AppendAssetPath(summary, "Generic", result.GenericClip);
+			AppendAssetPath(summary, "Humanoid In-Place", result.HumanoidInPlaceClip);
+			AppendAssetPath(summary, "Humanoid Root Motion", result.HumanoidRootMotionClip);
+			if (!string.IsNullOrEmpty(result.SourceManifestPath))
+			{
+				summary.Append("Source cache: ").AppendLine(Path.GetDirectoryName(result.SourceManifestPath));
+			}
+			if (!string.IsNullOrEmpty(result.PreviewVideoPath))
+			{
+				summary.Append("Preview video: ").AppendLine(result.PreviewVideoPath);
+			}
+			summary.Append("Hand offset max diff: L=")
+				.Append(result.LeftHandOffsetMaxDiff.ToString("F4"))
+				.Append(", R=")
+				.Append(result.RightHandOffsetMaxDiff.ToString("F4"));
+
+			foreach (DhmgsImportDiagnostic diagnostic in result.Diagnostics)
+			{
+				summary.AppendLine().Append('[').Append(diagnostic.Severity).Append("] ")
+					.Append(diagnostic.Message);
+			}
+			return summary.ToString();
+		}
+
+		private static void AppendAssetPath(StringBuilder summary, string label, UnityEngine.Object asset)
+		{
+			if (asset != null)
+			{
+				summary.Append(label).Append(": ").AppendLine(AssetDatabase.GetAssetPath(asset));
+			}
+		}
+
+		private static MessageType ResultMessageType(IReadOnlyList<DhmgsImportDiagnostic> diagnostics)
+		{
+			MessageType type = MessageType.Info;
+			foreach (DhmgsImportDiagnostic diagnostic in diagnostics)
+			{
+				type = Max(type, ToMessageType(diagnostic.Severity));
+			}
+			return type;
+		}
+
+		private static MessageType ToMessageType(DhmgsImportSeverity severity)
+		{
+			return severity switch
+			{
+				DhmgsImportSeverity.Warning => MessageType.Warning,
+				DhmgsImportSeverity.Error => MessageType.Error,
+				_ => MessageType.Info,
 			};
-			_status = progress.Stage.ToString();
-			_statusType = MessageType.Info;
-			Repaint();
 		}
 
-		private static GameObject LoadRigPref(string key)
+		private static MessageType Max(MessageType left, MessageType right)
 		{
-			string guid = EditorPrefs.GetString(key, string.Empty);
-			string path = string.IsNullOrEmpty(guid) ? string.Empty : AssetDatabase.GUIDToAssetPath(guid);
-			return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
-		}
-
-		private static void SaveRigPref(string key, GameObject rig)
-		{
-			string path = rig != null ? AssetDatabase.GetAssetPath(rig) : string.Empty;
-			EditorPrefs.SetString(key, string.IsNullOrEmpty(path) ? string.Empty : AssetDatabase.AssetPathToGUID(path));
-		}
-
-		private static void StringPref(ref string value, string label, string key)
-		{
-			using EditorGUI.ChangeCheckScope check = new EditorGUI.ChangeCheckScope();
-			value = EditorGUILayout.TextField(label, value);
-			if (check.changed)
-			{
-				EditorPrefs.SetString(key, value);
-			}
-		}
-
-		private static void BoolPref(ref bool value, string label, string key)
-		{
-			using EditorGUI.ChangeCheckScope check = new EditorGUI.ChangeCheckScope();
-			value = EditorGUILayout.Toggle(label, value);
-			if (check.changed)
-			{
-				EditorPrefs.SetBool(key, value);
-			}
-		}
-
-		private static void RigPref(ref GameObject value, string label, string key)
-		{
-			using EditorGUI.ChangeCheckScope check = new EditorGUI.ChangeCheckScope();
-			value = (GameObject)EditorGUILayout.ObjectField(label, value, typeof(GameObject), false);
-			if (check.changed)
-			{
-				SaveRigPref(key, value);
-			}
+			return (MessageType)Mathf.Max((int)left, (int)right);
 		}
 
 		private void SetStatus(string message, MessageType type)
 		{
-			_status = message;
+			_status = string.IsNullOrEmpty(message) ? " " : message;
 			_statusType = type;
-			Repaint();
+			if (this != null)
+			{
+				Repaint();
+			}
 		}
 	}
 }

@@ -15,8 +15,8 @@ namespace Mnnh.Dhmgs.Samples.Editor
 	[InitializeOnLoad]
 	internal static class DhmgsFullDemoEditorImportBridge
 	{
-		private const string HumanoidBakeRigGuid = "615fc734a2d080f4d954f707b0aaa53e";
-		private const string YBotGuid = "121420fccd4c4bba93c676f768fdf0a5";
+		private const string BundledNeutralSmplxBakeSourceGuid = "615fc734a2d080f4d954f707b0aaa53e";
+		private const string BundledYBotPreviewAvatarGuid = "121420fccd4c4bba93c676f768fdf0a5";
 
 		private sealed class PreviewSession
 		{
@@ -60,7 +60,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
-			IProgress<DhmgsSampleImportProgress> progress,
+			Action<DhmgsSampleImportProgress> onProgress,
 			CancellationToken cancellationToken)
 		{
 			ThrowIfUnavailable(context, cancellationToken);
@@ -77,7 +77,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 					context,
 					baseUrl,
 					attemptId,
-					progress,
+					onProgress,
 					cancellationToken);
 			}
 			catch
@@ -91,38 +91,35 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			DhmgsSampleImportContext context,
 			string baseUrl,
 			int attemptId,
-			IProgress<DhmgsSampleImportProgress> progress,
+			Action<DhmgsSampleImportProgress> onProgress,
 			CancellationToken cancellationToken)
 		{
-			GameObject humanoidBakeRig = LoadRequiredModel(HumanoidBakeRigGuid, "Humanoid SMPL-X bake rig");
-			GameObject yBot = LoadRequiredModel(YBotGuid, "Y Bot preview avatar");
+			GameObject bundledNeutralSmplxBakeSource = LoadRequiredModel(
+				BundledNeutralSmplxBakeSourceGuid,
+				"bundled Neutral SMPL-X bake source");
+			GameObject bundledYBotPreviewAvatar = LoadRequiredModel(
+				BundledYBotPreviewAvatarGuid,
+				"bundled Y Bot preview avatar");
 
-			IProgress<DhmgsImportProgress> pipelineProgress =
-				new Progress<DhmgsImportProgress>(value => Report(progress, value));
-			DhmgsImportResult import = await DhmgsImportPipeline.ImportAsync(
-				new DhmgsImportRequest(baseUrl, attemptId),
-				pipelineProgress,
+			DhmgsImportJobResult job = await DhmgsImportService.ImportAsync(
+				new DhmgsImportJobRequest(
+					baseUrl,
+					attemptId,
+					DhmgsImportService.DefaultOutputRoot,
+					bundledNeutralSmplxBakeSource,
+					DhmgsBakeOutputs.Humanoid,
+					DhmgsVideoPolicy.CacheIfPresent),
+				value => Report(onProgress, value),
 				cancellationToken);
 
 			ThrowIfUnavailable(context, cancellationToken);
-			DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
-				import,
-				new DhmgsAssetWriteOptions
-				{
-					OutputRoot = DhmgsAssetWriter.DefaultOutputRoot,
-					HumanoidRig = humanoidBakeRig,
-					BakeGenericClip = false,
-					BakeHumanoidClips = true,
-					CancellationToken = cancellationToken,
-				},
-				pipelineProgress);
-			if (written.HumanoidInPlaceClip == null)
+			if (job.HumanoidInPlaceClip == null)
 			{
-				throw new InvalidOperationException($"Humanoid bake did not produce a clip.\n{written.Summary}");
+				throw new InvalidOperationException("Humanoid bake did not produce an in-place clip.");
 			}
 
 			ThrowIfUnavailable(context, cancellationToken);
-			string videoPath = DhmgsImportPipeline.WritePreviewVideo(import);
+			string videoPath = job.PreviewVideoPath;
 			IDhmgsPlaybackClock clock = new DhmgsRealtimeClock(loop: true);
 			bool hasVideoPreview = false;
 			PreviewSession session = null;
@@ -132,17 +129,30 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				DhmgsCameraOverlay overlay = EnsureOverlay(session);
 				bool videoPrepared = false;
 				IDhmgsPlaybackClock preparedClock = null;
-				IDhmgsPlaybackClock videoClock = await session.Preview.PrepareClockAsync(
-					overlay.Activate(import.Motion, videoPath, value =>
-					{
-						preparedClock = value;
-						videoPrepared = true;
-					}),
-					() => videoPrepared,
-					() => preparedClock,
-					() => AbortOverlay(overlay),
-					cancellationToken,
-					20f);
+				IDhmgsPlaybackClock videoClock;
+				bool previousRunInBackground = Application.runInBackground;
+				try
+				{
+					// VideoPlayer preparation and its timeout are both driven by the PlayerLoop.
+					// Keep this bounded Editor-only wait moving when Unity loses focus, then
+					// restore the project's authored runtime behavior immediately afterwards.
+					Application.runInBackground = true;
+					videoClock = await session.Preview.PrepareClockAsync(
+						overlay.Activate(job.Motion, videoPath, value =>
+						{
+							preparedClock = value;
+							videoPrepared = true;
+						}),
+						() => videoPrepared,
+						() => preparedClock,
+						() => AbortOverlay(overlay),
+						cancellationToken,
+						20f);
+				}
+				finally
+				{
+					Application.runInBackground = previousRunInBackground;
+				}
 
 				ThrowIfUnavailable(context, cancellationToken);
 				if (videoClock != null)
@@ -155,10 +165,10 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			ThrowIfUnavailable(context, cancellationToken);
 			session ??= GetOrCreateSession(context);
 			bool humanoidPreviewStarted = session.HumanoidPreview.Play(
-				yBot,
-				written.HumanoidInPlaceClip,
+				bundledYBotPreviewAvatar,
+				job.HumanoidInPlaceClip,
 				clock,
-				import.Motion.fps,
+				job.Motion.fps,
 				ResolveIsolationPosition(context));
 			if (!humanoidPreviewStarted)
 			{
@@ -170,14 +180,35 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				context.HumanoidPreviewCamera.SetTarget(session.HumanoidPreview);
 			}
 
-			string videoNote = videoPath == null
-				? "Preview video: not present"
-				: $"Preview video: {videoPath}";
 			return new DhmgsSampleImportResult(
-				import.Motion,
+				job.Motion,
 				clock,
-				$"{written.Summary}\n{videoNote}",
+				BuildSummary(job),
 				hasVideoPreview);
+		}
+
+		private static string BuildSummary(DhmgsImportJobResult job)
+		{
+			List<string> lines = new List<string>
+			{
+				$"[{job.Motion.attemptId}] Saved {job.Motion.frameCount} frames @ {job.Motion.fps:F2} fps",
+				job.MotionAssetPath,
+				$"Humanoid In-Place: {AssetDatabase.GetAssetPath(job.HumanoidInPlaceClip)}",
+				$"Humanoid Root Motion: {AssetDatabase.GetAssetPath(job.HumanoidRootMotionClip)}",
+				string.IsNullOrEmpty(job.PreviewVideoPath)
+					? "Preview video: not present"
+					: $"Preview video: {job.PreviewVideoPath}",
+				$"Hand offset max diff: L={job.LeftHandOffsetMaxDiff:F4}, R={job.RightHandOffsetMaxDiff:F4}",
+			};
+
+			foreach (DhmgsImportDiagnostic diagnostic in job.Diagnostics)
+			{
+				if (diagnostic.Severity != DhmgsImportSeverity.Info)
+				{
+					lines.Add($"[{diagnostic.Severity}] {diagnostic.Message}");
+				}
+			}
+			return string.Join("\n", lines);
 		}
 
 		private static PreviewSession GetOrCreateSession(DhmgsSampleImportContext context)
@@ -416,23 +447,19 @@ namespace Mnnh.Dhmgs.Samples.Editor
 		}
 
 		private static void Report(
-			IProgress<DhmgsSampleImportProgress> progress,
-			DhmgsImportProgress value)
+			Action<DhmgsSampleImportProgress> onProgress,
+			DhmgsImportJobProgress value)
 		{
-			if (progress == null)
+			if (onProgress == null)
 			{
 				return;
 			}
 
-			float mapped = value.Stage switch
-			{
-				DhmgsImportStage.Downloading => value.Value * 0.6f,
-				DhmgsImportStage.Extracting => 0.6f + value.Value * 0.1f,
-				DhmgsImportStage.Decoding => 0.7f + value.Value * 0.1f,
-				DhmgsImportStage.WritingAssets => 0.8f + value.Value * 0.2f,
-				_ => value.Value,
-			};
-			progress.Report(new DhmgsSampleImportProgress(mapped, value.Stage.ToString()));
+			float mapped = Mathf.Clamp01(value.OverallProgress) * 0.85f;
+			string status = string.IsNullOrWhiteSpace(value.Message)
+				? value.Stage.ToString()
+				: value.Message;
+			onProgress(new DhmgsSampleImportProgress(mapped, status));
 		}
 	}
 }

@@ -1,3 +1,7 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
@@ -21,51 +25,143 @@ namespace Mnnh.Dhmgs.Editor
 		public static DhmgsMotionAsset Decode(
 			string sourceId,
 			DhmgsManifestDto manifest,
-			DhmgsSequenceDto sequence)
+			DhmgsSequenceDto sequence,
+			CancellationToken cancellationToken = default)
 		{
-			int frameCount = sequence.Frames.Length;
-			DhmgsMotionAsset motion = ScriptableObject.CreateInstance<DhmgsMotionAsset>();
-			motion.name = $"dhmgs-{sourceId}";
-			motion.attemptId = sourceId;
-			motion.fps = manifest.Fps;
-			motion.frameCount = frameCount;
-			motion.boneCount = BoneCount;
-			motion.boneNames = BuildBoneNames(manifest);
-			motion.boneRotations = new Quaternion[frameCount * BoneCount];
-			motion.pelvisPositions = new Vector3[frameCount];
-			motion.pelvisRotations = new Quaternion[frameCount];
-
-			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+			if (manifest == null)
 			{
-				SmplxFrameDto frame = sequence.Frames[frameIndex];
-				int baseIndex = frameIndex * BoneCount;
-
-				for (int bodyIndex = 0; bodyIndex < 21; bodyIndex++)
-				{
-					motion.boneRotations[baseIndex + bodyIndex] = JointRotation(frame.Body[bodyIndex]);
-				}
-
-				motion.boneRotations[baseIndex + JawIndex] = JointRotation(frame.Jaw);
-				motion.boneRotations[baseIndex + LeftEyeIndex] = JointRotation(frame.LeftEye);
-				motion.boneRotations[baseIndex + RightEyeIndex] = JointRotation(frame.RightEye);
-
-				for (int handIndex = 0; handIndex < 15; handIndex++)
-				{
-					motion.boneRotations[baseIndex + LeftHandStart + handIndex] =
-						HandRotation(frame.LeftHand[handIndex], manifest.LeftHandOffset, handIndex);
-					motion.boneRotations[baseIndex + RightHandStart + handIndex] =
-						HandRotation(frame.RightHand[handIndex], manifest.RightHandOffset, handIndex);
-				}
-
-				motion.pelvisRotations[frameIndex] = RootCorrection * JointRotation(frame.Root);
-				motion.pelvisPositions[frameIndex] = PositionToUnity(frame.Translation);
+				throw new ArgumentNullException(nameof(manifest));
+			}
+			if (sequence?.Frames == null)
+			{
+				throw new ArgumentNullException(nameof(sequence));
 			}
 
+			cancellationToken.ThrowIfCancellationRequested();
+			int frameCount = sequence.Frames.Length;
+			DhmgsMotionAsset motion = CreateMotion(sourceId, manifest, frameCount);
+			try
+			{
+				for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					DecodeFrame(motion, manifest, sequence.Frames[frameIndex], frameIndex);
+				}
+
+				ApplyMetadata(motion, manifest);
+				cancellationToken.ThrowIfCancellationRequested();
+				return motion;
+			}
+			catch
+			{
+				UnityEngine.Object.DestroyImmediate(motion);
+				throw;
+			}
+		}
+
+		internal static async Task<DhmgsMotionAsset> DecodeAsync(
+			string sourceId,
+			DhmgsManifestDto manifest,
+			DhmgsSequenceDto sequence,
+			Action<float> onProgress,
+			CancellationToken cancellationToken)
+		{
+			if (manifest == null)
+			{
+				throw new ArgumentNullException(nameof(manifest));
+			}
+			if (sequence?.Frames == null)
+			{
+				throw new ArgumentNullException(nameof(sequence));
+			}
+
+			cancellationToken.ThrowIfCancellationRequested();
+			int frameCount = sequence.Frames.Length;
+			DhmgsMotionAsset motion = CreateMotion(sourceId, manifest, frameCount);
+			DhmgsEditorYield editorYield = new DhmgsEditorYield();
+			try
+			{
+				for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+				{
+					if ((frameIndex & 31) == 0)
+					{
+						await editorYield.CheckpointAsync(cancellationToken);
+					}
+					DecodeFrame(motion, manifest, sequence.Frames[frameIndex], frameIndex);
+					onProgress?.Invoke(frameCount == 0 ? 1f : (float)(frameIndex + 1) / frameCount);
+				}
+
+				ApplyMetadata(motion, manifest);
+				cancellationToken.ThrowIfCancellationRequested();
+				onProgress?.Invoke(1f);
+				return motion;
+			}
+			catch
+			{
+				UnityEngine.Object.DestroyImmediate(motion);
+				throw;
+			}
+		}
+
+		private static DhmgsMotionAsset CreateMotion(
+			string sourceId,
+			DhmgsManifestDto manifest,
+			int frameCount)
+		{
+			DhmgsMotionAsset motion = ScriptableObject.CreateInstance<DhmgsMotionAsset>();
+			try
+			{
+				motion.name = $"dhmgs-{sourceId}";
+				motion.attemptId = sourceId;
+				motion.fps = manifest.Fps;
+				motion.frameCount = frameCount;
+				motion.boneCount = BoneCount;
+				motion.boneNames = BuildBoneNames(manifest);
+				motion.boneRotations = new Quaternion[checked(frameCount * BoneCount)];
+				motion.pelvisPositions = new Vector3[frameCount];
+				motion.pelvisRotations = new Quaternion[frameCount];
+				return motion;
+			}
+			catch
+			{
+				UnityEngine.Object.DestroyImmediate(motion);
+				throw;
+			}
+		}
+
+		private static void DecodeFrame(
+			DhmgsMotionAsset motion,
+			DhmgsManifestDto manifest,
+			SmplxFrameDto frame,
+			int frameIndex)
+		{
+			int baseIndex = frameIndex * BoneCount;
+			for (int bodyIndex = 0; bodyIndex < 21; bodyIndex++)
+			{
+				motion.boneRotations[baseIndex + bodyIndex] = JointRotation(frame.Body[bodyIndex]);
+			}
+
+			motion.boneRotations[baseIndex + JawIndex] = JointRotation(frame.Jaw);
+			motion.boneRotations[baseIndex + LeftEyeIndex] = JointRotation(frame.LeftEye);
+			motion.boneRotations[baseIndex + RightEyeIndex] = JointRotation(frame.RightEye);
+			for (int handIndex = 0; handIndex < 15; handIndex++)
+			{
+				motion.boneRotations[baseIndex + LeftHandStart + handIndex] =
+					HandRotation(frame.LeftHand[handIndex], manifest.LeftHandOffset, handIndex);
+				motion.boneRotations[baseIndex + RightHandStart + handIndex] =
+					HandRotation(frame.RightHand[handIndex], manifest.RightHandOffset, handIndex);
+			}
+
+			motion.pelvisRotations[frameIndex] = RootCorrection * JointRotation(frame.Root);
+			motion.pelvisPositions[frameIndex] = PositionToUnity(frame.Translation);
+		}
+
+		private static void ApplyMetadata(DhmgsMotionAsset motion, DhmgsManifestDto manifest)
+		{
 			motion.imageWidth = manifest.ImageWidth;
 			motion.imageHeight = manifest.ImageHeight;
 			motion.focalLength = manifest.FocalLength;
 			motion.principalPoint = manifest.PrincipalPoint;
-			return motion;
 		}
 
 		internal static Vector3 AxisAngleToUnity(Vector3 raw)

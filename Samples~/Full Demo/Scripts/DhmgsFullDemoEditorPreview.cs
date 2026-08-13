@@ -34,16 +34,25 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 
 			CancelClockPreparation();
-			_clockCompletion = new TaskCompletionSource<IDhmgsPlaybackClock>();
+			TaskCompletionSource<IDhmgsPlaybackClock> completion =
+				new TaskCompletionSource<IDhmgsPlaybackClock>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+			_clockCompletion = completion;
 			_clockAbort = abort;
 			_clockCancellationToken = cancellationToken;
-			_clockMonitor = StartCoroutine(MonitorClock(
+			Coroutine monitor = StartCoroutine(MonitorClock(
 				activation,
 				isCompleted,
 				getClock,
 				cancellationToken,
 				Mathf.Max(0.1f, timeoutSeconds)));
-			return _clockCompletion.Task;
+			// StartCoroutine may run the iterator through completion before returning.
+			// Do not resurrect a monitor that already cleared this operation's state.
+			if (ReferenceEquals(_clockCompletion, completion))
+			{
+				_clockMonitor = monitor;
+			}
+			return completion.Task;
 		}
 
 		public void CancelClockPreparation()

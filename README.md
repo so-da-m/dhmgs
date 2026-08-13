@@ -13,7 +13,7 @@ DHMGS 결과를 Unity 에셋으로 가져오고 SMPL-X 리그에서 재생하기
 Unity Package Manager의 **Add package from git URL**에서 릴리스 태그를 지정합니다.
 
 ```text
-https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.10
+https://github.com/so-da-m/dhmgs.git#v0.7.0
 ```
 
 사내 private 저장소이므로 설치하는 PC의 Git 자격 증명에 저장소 읽기 권한이 있어야 합니다. Git LFS는 사용하지 않습니다.
@@ -23,8 +23,12 @@ https://github.com/mn-nh/mnnh-dhmgs.git#v0.6.10
 Package Manager에서 **MNNH DHMGS > Samples > Full Demo > Import**를 누른 뒤 아래 씬을 엽니다.
 
 ```text
-Assets/Samples/MNNH DHMGS/0.6.10/Full Demo/Scenes/DhmgsFullDemo.unity
+Assets/Samples/MNNH DHMGS/0.7.0/Full Demo/Scenes/DhmgsFullDemo.unity
 ```
+
+패키지를 업데이트한 뒤 새 버전의 Full Demo를 다시 Import할 때는 먼저
+`Assets/Samples/MNNH DHMGS/<이전 버전>/Full Demo`를 제거하세요. Unity는 샘플을
+버전별 폴더에 복사하므로 이전 사본을 남기면 같은 asmdef와 스크립트 GUID가 중복될 수 있습니다.
 
 Play Mode의 compact Canvas UI에서 다음 기능을 확인할 수 있습니다.
 
@@ -89,7 +93,7 @@ Assets/Mnnh.Dhmgs/
 
 1. `DHMGS > Importer`를 엽니다.
 2. 사내 DHMGS 서버의 Base URL과 Attempt ID를 입력합니다.
-3. 필요한 경우에만 Generic/Humanoid 베이킹용 리그를 선택합니다.
+3. 패키지 기본 Neutral 또는 호환되는 단일 **SMPL-X Bake Source**를 고르고 필요한 출력만 선택합니다. YBot 같은 일반 Humanoid는 베이크 소스가 아니라 결과 클립의 리타게팅 대상입니다.
 4. **Import**를 누릅니다.
 
 기본 결과 위치는 다음과 같습니다.
@@ -97,16 +101,23 @@ Assets/Mnnh.Dhmgs/
 ```text
 Assets/Mnnh.Dhmgs/Content/Generated/{attemptId}/
 ├─ {attemptId}.asset
-├─ manifest.json
-├─ sequence.json
-└─ 선택한 AnimationClip들
+├─ {attemptId}_generic.anim                 # 선택 사항
+├─ {attemptId}_humanoid_inplace.anim        # 선택 사항
+└─ {attemptId}_humanoid_rootmotion.anim     # 선택 사항
 ```
 
-선택적으로 저장한 MP4는 Unity 에셋이 아닌 로컬 캐시 경로에 기록합니다.
+서버 원문과 선택적으로 저장한 MP4는 Unity 에셋이 아닌 로컬 캐시 경로에 기록합니다.
 
 ```text
-Application.persistentDataPath/Dhmgs/{attemptId}/video.mp4
+Library/Mnnh.Dhmgs/source-{sourceIdSha256}/
+├─ manifest.json
+├─ sequence.json
+└─ video.mp4                 # CacheIfPresent/Require에서 영상이 있을 때
 ```
+
+서버 ZIP의 선택적 `identity.json`은 4 MiB 제한과 UTF-8 검사를 거쳐 호환 메타데이터로 허용하지만, 현재 표준 체형 재생에는 사용하지 않으며 `Assets`나 로컬 캐시에 복사하지 않습니다.
+
+`CacheIfPresent`는 새 결과에 영상이 없으면 같은 source의 오래된 `video.mp4`도 제거합니다. `Ignore`는 영상 캐시를 읽거나 변경하지 않습니다. Importer 창의 입력, 출력 옵션, 마지막 SMPL-X 소스는 프로젝트 로컬 `UserSettings/DhmgsImporterSettings.asset`에 저장됩니다.
 
 대화형 Unity Editor에서 패키지를 설치하거나 업데이트하면 Insecure HTTP를 허용하고, 이 PC의 사용자 환경에서 프로젝트 경로와 패키지 버전 조합당 한 번 프로젝트 검사를 실행합니다. 이후 설정이 꺼진 채 Editor 도메인이 다시 로드되면 다운로드 의존성을 위해 자동 복구합니다. 이 설정은 프로젝트 전체에 영구 적용되며 패키지를 제거해도 자동 복원되지 않습니다. `DHMGS > Project > Validate`와 `DHMGS > Project > Allow Insecure HTTP` 수동 명령도 그대로 남아 있어 언제든 다시 검사하거나 설정할 수 있습니다. TMP Essential Resources가 없으면 검사 경고를 남기지만 자동 임포트하지 않습니다. Humanoid 미리보기는 별도 프로젝트 레이어를 요구하지 않습니다.
 
@@ -129,22 +140,44 @@ Addressables, Resources 또는 자체 catalog처럼 동적 에셋을 빌드에�
 
 ## 공개 Editor API
 
-다른 사내 Editor 도구에서도 같은 파이프라인을 호출할 수 있습니다.
+다른 사내 Editor 도구와 Full Demo도 Window와 동일한 단일 서비스 계약을 사용합니다.
 
 ```csharp
-DhmgsImportResult imported = await DhmgsImportPipeline.ImportAsync(
-    new DhmgsImportRequest(baseUrl, attemptId));
+DhmgsImportJobRequest request = new(
+    baseUrl,
+    attemptId,
+    DhmgsImportService.DefaultOutputRoot,
+    DhmgsImportService.LoadBundledSmplxBakeSource(),
+    DhmgsBakeOutputs.Generic | DhmgsBakeOutputs.Humanoid,
+    DhmgsVideoPolicy.CacheIfPresent);
 
-DhmgsAssetWriteResult written = DhmgsAssetWriter.Write(
-    imported,
-    new DhmgsAssetWriteOptions());
+DhmgsImportValidation validation = DhmgsImportService.Validate(request);
+if (!validation.CanRun)
+    throw new InvalidOperationException(validation.Diagnostics[0].Message);
+
+DhmgsImportJobResult result = await DhmgsImportService.ImportAsync(
+    request,
+    progress => Debug.Log($"{progress.Stage}: {progress.OverallProgress:P0}"),
+    cancellationToken);
 ```
 
-이미 받은 ZIP 바이트를 처리하려면 `DhmgsImportPipeline.ImportArchive`를 사용합니다. 네트워크, 해석, 변환, Unity 에셋 저장 단계가 분리되어 있어 필요한 단계만 조합할 수 있습니다.
+이미 메모리에 받은 ZIP도 같은 서비스와 저장 규칙을 통과시킬 수 있습니다.
+
+```csharp
+DhmgsImportJobRequest request = new(
+    sourceId,
+    archiveBytes,
+    DhmgsImportService.DefaultOutputRoot,
+    DhmgsImportService.LoadBundledSmplxBakeSource(),
+    DhmgsBakeOutputs.Humanoid,
+    DhmgsVideoPolicy.Ignore);
+```
+
+`DhmgsImportService`가 검증, 다운로드, 제한된 아카이브 해석, cooperative 베이크, 로컬 캐시, prepare/publish 저장을 한 작업으로 소유합니다. 저수준 파서와 writer는 패키지 내부 구현이며, 요청한 출력이 하나라도 실패하면 성공 결과를 반환하지 않습니다. 게시 직전까지 취소할 수 있고 게시 구간에서는 기존 에셋 GUID를 보존하며 오류 시 이전 직렬화 상태를 복구합니다.
 
 ## 릴리스 규칙
 
-- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.6.10` ↔ `v0.6.10`.
+- `package.json` 버전과 Git 태그를 함께 올립니다. 예: `0.7.0` ↔ `v0.7.0`.
 - 소비 프로젝트는 floating branch 대신 릴리스 태그에 고정합니다.
 - `Content/Generated`와 프로젝트 전용 rig/scene은 패키지 저장소에 커밋하지 않습니다.
 - 100 MiB가 넘는 단일 바이너리는 저장소에 넣지 않고 별도 콘텐츠 전달 방식을 사용합니다.

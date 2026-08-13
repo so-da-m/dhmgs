@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
-using System.Text;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 using UnityEditor;
 
@@ -9,7 +12,7 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	public sealed class DhmgsAssetWriteOptions
+	internal sealed class DhmgsAssetWriteOptions
 	{
 		public string OutputRoot { get; set; } = DhmgsAssetWriter.DefaultOutputRoot;
 		public GameObject GenericRig { get; set; }
@@ -19,24 +22,165 @@ namespace Mnnh.Dhmgs.Editor
 		public CancellationToken CancellationToken { get; set; } = default;
 	}
 
-	public sealed class DhmgsAssetWriteResult
+	internal sealed class DhmgsAssetWriteResult
 	{
+		public DhmgsMotionAsset Motion { get; internal set; }
 		public string MotionAssetPath { get; internal set; }
 		public AnimationClip GenericClip { get; internal set; }
 		public AnimationClip HumanoidInPlaceClip { get; internal set; }
 		public AnimationClip HumanoidRootMotionClip { get; internal set; }
 		public string Summary { get; internal set; }
+		public IReadOnlyList<string> CleanupWarnings { get; internal set; } = Array.Empty<string>();
 	}
 
-	public static class DhmgsAssetWriter
+	internal sealed class DhmgsPreparedAssetWrite : IDisposable
+	{
+		private readonly DhmgsImportResult _import;
+		private readonly string _outputRoot;
+		private readonly string _assetId;
+		private readonly bool _publishGeneric;
+		private readonly bool _publishHumanoid;
+		private bool _published;
+		private bool _disposed;
+
+		internal DhmgsPreparedAssetWrite(
+			DhmgsImportResult import,
+			string outputRoot,
+			string assetId,
+			AnimationClip genericClip,
+			AnimationClip humanoidInPlaceClip,
+			AnimationClip humanoidRootMotionClip,
+			bool publishGeneric,
+			bool publishHumanoid)
+		{
+			_import = import;
+			_outputRoot = outputRoot;
+			_assetId = assetId;
+			GenericClip = genericClip;
+			HumanoidInPlaceClip = humanoidInPlaceClip;
+			HumanoidRootMotionClip = humanoidRootMotionClip;
+			_publishGeneric = publishGeneric;
+			_publishHumanoid = publishHumanoid;
+		}
+
+		internal AnimationClip GenericClip { get; private set; }
+		internal AnimationClip HumanoidInPlaceClip { get; private set; }
+		internal AnimationClip HumanoidRootMotionClip { get; private set; }
+
+		internal DhmgsAssetWriteResult Publish()
+		{
+			if (_disposed)
+			{
+				throw new ObjectDisposedException(nameof(DhmgsPreparedAssetWrite));
+			}
+			if (_published)
+			{
+				throw new InvalidOperationException("The prepared DHMGS assets were already published.");
+			}
+
+			DhmgsAssetWriteResult result = DhmgsAssetWriter.PublishPrepared(
+				_import,
+				_outputRoot,
+				_assetId,
+				GenericClip,
+				HumanoidInPlaceClip,
+				HumanoidRootMotionClip,
+				_publishGeneric,
+				_publishHumanoid);
+			_published = true;
+			GenericClip = result.GenericClip;
+			HumanoidInPlaceClip = result.HumanoidInPlaceClip;
+			HumanoidRootMotionClip = result.HumanoidRootMotionClip;
+			return result;
+		}
+
+		public void Dispose()
+		{
+			if (_disposed)
+			{
+				return;
+			}
+			_disposed = true;
+			if (!_published)
+			{
+				DhmgsAssetWriter.DestroyTransientClip(GenericClip);
+				DhmgsAssetWriter.DestroyTransientClip(HumanoidInPlaceClip);
+				DhmgsAssetWriter.DestroyTransientClip(HumanoidRootMotionClip);
+			}
+		}
+	}
+
+	internal static class DhmgsAssetWriter
 	{
 		public const string DefaultOutputRoot = "Assets/Mnnh.Dhmgs/Content/Generated";
+		internal static Action<string> PublishCheckpointForTests { get; set; }
 
-		public static DhmgsAssetWriteResult Write(
+		private sealed class AssetBackup : IDisposable
+		{
+			public AssetBackup(UnityEngine.Object target, UnityEngine.Object snapshot)
+			{
+				Target = target;
+				Snapshot = snapshot;
+			}
+
+			public UnityEngine.Object Target { get; }
+			public UnityEngine.Object Snapshot { get; }
+
+			public void Restore()
+			{
+				if (Target == null || Snapshot == null)
+				{
+					return;
+				}
+				EditorUtility.CopySerialized(Snapshot, Target);
+				EditorUtility.SetDirty(Target);
+				AssetDatabase.SaveAssetIfDirty(Target);
+			}
+
+			public void Dispose()
+			{
+				if (Snapshot != null)
+				{
+					UnityEngine.Object.DestroyImmediate(Snapshot);
+				}
+			}
+		}
+
+		private readonly struct MovedAsset
+		{
+			public MovedAsset(string originalPath, string temporaryPath)
+			{
+				OriginalPath = originalPath;
+				TemporaryPath = temporaryPath;
+			}
+
+			public string OriginalPath { get; }
+			public string TemporaryPath { get; }
+		}
+
+		internal static async Task<DhmgsAssetWriteResult> WriteAsync(
 			DhmgsImportResult import,
 			DhmgsAssetWriteOptions options,
-			IProgress<DhmgsImportProgress> progress = null,
-			CancellationToken cancellationToken = default)
+			Action<DhmgsImportJobStage, float, string, bool> onProgress,
+			CancellationToken cancellationToken)
+		{
+			using DhmgsPreparedAssetWrite prepared = await PrepareAsync(
+				import,
+				options,
+				onProgress,
+				cancellationToken);
+			cancellationToken.ThrowIfCancellationRequested();
+			onProgress?.Invoke(DhmgsImportJobStage.Publishing, 0f, "Publishing assets (cancellation disabled)", false);
+			DhmgsAssetWriteResult result = prepared.Publish();
+			onProgress?.Invoke(DhmgsImportJobStage.Publishing, 1f, "Published build-safe assets", false);
+			return result;
+		}
+
+		internal static async Task<DhmgsPreparedAssetWrite> PrepareAsync(
+			DhmgsImportResult import,
+			DhmgsAssetWriteOptions options,
+			Action<DhmgsImportJobStage, float, string, bool> onProgress,
+			CancellationToken cancellationToken)
 		{
 			if (import?.Motion == null || !import.Motion.IsValid)
 			{
@@ -49,207 +193,440 @@ namespace Mnnh.Dhmgs.Editor
 			}
 			cancellationToken.ThrowIfCancellationRequested();
 			string outputRoot = ValidateOutputRoot(options.OutputRoot);
+			string assetId = CreateAssetId(import);
 
-			progress?.Report(new DhmgsImportProgress(DhmgsImportStage.WritingAssets, 0f));
-			cancellationToken.ThrowIfCancellationRequested();
-			string assetId = Sanitize(import.SourceId);
-			ValidateAssetId(assetId);
+			AnimationClip genericClip = null;
+			AnimationClip humanoidInPlaceClip = null;
+			AnimationClip humanoidRootMotionClip = null;
+			try
+			{
+				if (options.BakeGenericClip)
+				{
+					if (options.GenericRig == null)
+					{
+						throw new InvalidOperationException("A SMPL-X bake source is required for Generic output.");
+					}
+					onProgress?.Invoke(DhmgsImportJobStage.BakingGeneric, 0f, "Baking Generic clip", true);
+					genericClip = await DhmgsAnimationClipBaker.BakeGenericAsync(
+						import.Motion,
+						options.GenericRig,
+						value => onProgress?.Invoke(
+							DhmgsImportJobStage.BakingGeneric,
+							value,
+							"Baking Generic clip",
+							true),
+						cancellationToken);
+					if (genericClip == null)
+					{
+						throw new InvalidOperationException("Generic baking did not produce a clip.");
+					}
+				}
+
+				if (options.BakeHumanoidClips)
+				{
+					if (options.HumanoidRig == null)
+					{
+						throw new InvalidOperationException("A SMPL-X bake source is required for Humanoid output.");
+					}
+					onProgress?.Invoke(DhmgsImportJobStage.BakingHumanoid, 0f, "Baking Humanoid clips", true);
+					DhmgsHumanoidBakeArtifacts humanoid =
+						await DhmgsAnimationClipBaker.BakeHumanoidVariantsAsync(
+							import.Motion,
+							options.HumanoidRig,
+							value => onProgress?.Invoke(
+								DhmgsImportJobStage.BakingHumanoid,
+								value,
+								"Baking Humanoid clips",
+								true),
+							cancellationToken);
+					if (humanoid == null || humanoid.InPlace == null || humanoid.RootMotion == null)
+					{
+						throw new InvalidOperationException(
+							string.IsNullOrEmpty(humanoid?.Error)
+								? "Humanoid baking did not produce both required clips."
+								: humanoid.Error);
+					}
+					humanoidInPlaceClip = humanoid.InPlace;
+					humanoidRootMotionClip = humanoid.RootMotion;
+				}
+
+				cancellationToken.ThrowIfCancellationRequested();
+				onProgress?.Invoke(DhmgsImportJobStage.PreparingAssets, 1f, "Prepared all import artifacts", true);
+				return new DhmgsPreparedAssetWrite(
+					import,
+					outputRoot,
+					assetId,
+					genericClip,
+					humanoidInPlaceClip,
+					humanoidRootMotionClip,
+					options.BakeGenericClip,
+					options.BakeHumanoidClips);
+			}
+			catch
+			{
+				DestroyTransientClip(genericClip);
+				DestroyTransientClip(humanoidInPlaceClip);
+				DestroyTransientClip(humanoidRootMotionClip);
+				throw;
+			}
+		}
+
+		internal static DhmgsAssetWriteResult PublishPrepared(
+			DhmgsImportResult import,
+			string outputRoot,
+			string assetId,
+			AnimationClip preparedGeneric,
+			AnimationClip preparedHumanoidInPlace,
+			AnimationClip preparedHumanoidRootMotion,
+			bool publishGeneric,
+			bool publishHumanoid)
+		{
 			string outputDirectory = $"{outputRoot}/{assetId}";
-			EnsureAssetFolder(outputDirectory);
-			cancellationToken.ThrowIfCancellationRequested();
+			string transactionDirectory =
+				$"{outputRoot}/__DhmgsTransactions/{Guid.NewGuid():N}";
+			var createdFolders = new List<string>();
+			var transactionFolders = new List<string>();
 
 			string motionPath = $"{outputDirectory}/{assetId}.asset";
-			import.Motion = WriteMotion(import.Motion, motionPath);
-			cancellationToken.ThrowIfCancellationRequested();
-			WriteSourceJson(
-				outputDirectory,
-				import.ManifestJson,
-				import.SequenceJson,
-				cancellationToken);
-			progress?.Report(new DhmgsImportProgress(DhmgsImportStage.WritingAssets, 0.35f));
-			cancellationToken.ThrowIfCancellationRequested();
+			string genericPath = $"{outputDirectory}/{assetId}_generic.anim";
+			string humanoidInPlacePath = $"{outputDirectory}/{assetId}_humanoid_inplace.anim";
+			string humanoidRootMotionPath = $"{outputDirectory}/{assetId}_humanoid_rootmotion.anim";
 
-			string notes = BakeClips(
-				import.Motion,
-				outputDirectory,
-				assetId,
-				options,
-				out AnimationClip genericClip,
-				out AnimationClip humanoidInPlaceClip,
-				out AnimationClip humanoidRootMotionClip,
-				cancellationToken);
-
-			cancellationToken.ThrowIfCancellationRequested();
-			AssetDatabase.SaveAssets();
-			cancellationToken.ThrowIfCancellationRequested();
-			AssetDatabase.Refresh();
-			progress?.Report(new DhmgsImportProgress(DhmgsImportStage.WritingAssets, 1f));
-
-			return new DhmgsAssetWriteResult
+			var backups = new List<AssetBackup>();
+			var createdPaths = new List<string>();
+			var removedOutputs = new List<MovedAsset>();
+			bool stateCommitted = false;
+			try
 			{
-				MotionAssetPath = motionPath,
-				GenericClip = genericClip,
-				HumanoidInPlaceClip = humanoidInPlaceClip,
-				HumanoidRootMotionClip = humanoidRootMotionClip,
-				Summary = $"[{import.SourceId}] Saved {import.Motion.frameCount} frames @ {import.Motion.fps:F2} fps\n{motionPath}{notes}",
-			};
+				EnsureAssetFolder(outputDirectory, createdFolders);
+				// Raw server payload belongs in the project-local Library cache. Retire files
+				// created by pre-0.7 importers so the build-facing folder has one exact output set.
+				StageRemoval(
+					$"{outputDirectory}/manifest.json",
+					transactionDirectory,
+					transactionFolders,
+					removedOutputs);
+				StageRemoval(
+					$"{outputDirectory}/sequence.json",
+					transactionDirectory,
+					transactionFolders,
+					removedOutputs);
+				if (!publishGeneric)
+				{
+					StageRemoval(genericPath, transactionDirectory, transactionFolders, removedOutputs);
+				}
+				if (!publishHumanoid)
+				{
+					StageRemoval(
+						humanoidInPlacePath,
+						transactionDirectory,
+						transactionFolders,
+						removedOutputs);
+					StageRemoval(
+						humanoidRootMotionPath,
+						transactionDirectory,
+						transactionFolders,
+						removedOutputs);
+				}
+
+				DhmgsMotionAsset motion = PublishNativeAsset(
+					import.Motion,
+					motionPath,
+					assetId,
+					() => ScriptableObject.CreateInstance<DhmgsMotionAsset>(),
+					backups,
+					createdPaths);
+				import.Motion = motion;
+				PublishCheckpointForTests?.Invoke("motion");
+
+				AnimationClip generic = publishGeneric
+					? PublishNativeAsset(
+						preparedGeneric,
+						genericPath,
+						$"{assetId}_generic",
+						() => new AnimationClip(),
+						backups,
+						createdPaths)
+					: null;
+				AnimationClip humanoidInPlace = publishHumanoid
+					? PublishNativeAsset(
+						preparedHumanoidInPlace,
+						humanoidInPlacePath,
+						$"{assetId}_humanoid_inplace",
+						() => new AnimationClip(),
+						backups,
+						createdPaths)
+					: null;
+				AnimationClip humanoidRootMotion = publishHumanoid
+					? PublishNativeAsset(
+						preparedHumanoidRootMotion,
+						humanoidRootMotionPath,
+						$"{assetId}_humanoid_rootmotion",
+						() => new AnimationClip(),
+						backups,
+						createdPaths)
+					: null;
+				PublishCheckpointForTests?.Invoke("clips");
+
+				ValidatePublishedAsset(motionPath, motion);
+				if (publishGeneric)
+				{
+					ValidatePublishedAsset(genericPath, generic);
+				}
+				if (publishHumanoid)
+				{
+					ValidatePublishedAsset(humanoidInPlacePath, humanoidInPlace);
+					ValidatePublishedAsset(humanoidRootMotionPath, humanoidRootMotion);
+				}
+				stateCommitted = true;
+
+				var cleanupWarnings = new List<string>();
+				foreach (MovedAsset removed in removedOutputs)
+				{
+					try
+					{
+						PublishCheckpointForTests?.Invoke("cleanup");
+						DeleteRetiredOutput(removed.TemporaryPath);
+					}
+					catch (Exception cleanupError)
+					{
+						cleanupWarnings.Add(cleanupError.Message);
+					}
+				}
+				for (int index = transactionFolders.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						DeleteFolderIfEmpty(transactionFolders[index]);
+					}
+					catch (Exception cleanupError)
+					{
+						cleanupWarnings.Add(cleanupError.Message);
+					}
+				}
+
+				string summary = $"[{import.SourceId}] Saved {motion.frameCount} frames @ {motion.fps:F2} fps\n{motionPath}";
+				if (generic != null)
+				{
+					summary += $"\nGeneric: {genericPath}";
+				}
+				if (humanoidInPlace != null)
+				{
+					summary += $"\nHumanoid In-Place: {humanoidInPlacePath}";
+					summary += $"\nHumanoid Root Motion: {humanoidRootMotionPath}";
+				}
+
+				return new DhmgsAssetWriteResult
+				{
+					Motion = motion,
+					MotionAssetPath = motionPath,
+					GenericClip = generic,
+					HumanoidInPlaceClip = humanoidInPlace,
+					HumanoidRootMotionClip = humanoidRootMotion,
+					Summary = summary,
+					CleanupWarnings = cleanupWarnings.AsReadOnly(),
+				};
+			}
+			catch (Exception publishError)
+			{
+				if (stateCommitted)
+				{
+					throw new InvalidOperationException(
+						"DHMGS assets were published, but retired-output cleanup was incomplete. " +
+						"The published canonical assets are valid; inspect the __DhmgsTransactions recovery folder and retry.",
+						publishError);
+				}
+				var rollbackErrors = new List<Exception>();
+				for (int index = backups.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						backups[index].Restore();
+					}
+					catch (Exception rollbackError)
+					{
+						rollbackErrors.Add(rollbackError);
+					}
+				}
+				for (int index = createdPaths.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						string createdPath = createdPaths[index];
+						if (!AssetDatabase.DeleteAsset(createdPath)
+							&& AssetDatabase.LoadMainAssetAtPath(createdPath) != null)
+						{
+							throw new InvalidOperationException(
+								$"Could not remove newly published asset '{createdPath}' during rollback.");
+						}
+					}
+					catch (Exception rollbackError)
+					{
+						rollbackErrors.Add(rollbackError);
+					}
+				}
+				for (int index = removedOutputs.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						RestoreMovedAsset(removedOutputs[index]);
+					}
+					catch (Exception rollbackError)
+					{
+						rollbackErrors.Add(rollbackError);
+					}
+				}
+				for (int index = transactionFolders.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						DeleteFolderIfEmpty(transactionFolders[index]);
+					}
+					catch (Exception rollbackError)
+					{
+						rollbackErrors.Add(rollbackError);
+					}
+				}
+				for (int index = createdFolders.Count - 1; index >= 0; index--)
+				{
+					try
+					{
+						DeleteFolderIfEmpty(createdFolders[index]);
+					}
+					catch (Exception rollbackError)
+					{
+						rollbackErrors.Add(rollbackError);
+					}
+				}
+
+				if (rollbackErrors.Count == 0)
+				{
+					throw;
+				}
+				throw new AggregateException(
+					"DHMGS asset publishing failed and rollback was incomplete.",
+					new[] { publishError }.Concat(rollbackErrors));
+			}
+			finally
+			{
+				foreach (AssetBackup backup in backups)
+				{
+					backup.Dispose();
+				}
+			}
 		}
 
-		private static DhmgsMotionAsset WriteMotion(DhmgsMotionAsset source, string path)
+		private static T PublishNativeAsset<T>(
+			T source,
+			string path,
+			string name,
+			Func<T> createSnapshot,
+			ICollection<AssetBackup> backups,
+			ICollection<string> createdPaths)
+			where T : UnityEngine.Object
 		{
-			string assetName = Path.GetFileNameWithoutExtension(path);
-			source.name = assetName;
-			DhmgsMotionAsset existing = AssetDatabase.LoadAssetAtPath<DhmgsMotionAsset>(path);
+			if (source == null)
+			{
+				throw new InvalidOperationException($"The prepared asset for '{path}' is missing.");
+			}
+
+			UnityEngine.Object occupied = AssetDatabase.LoadMainAssetAtPath(path);
+			T existing = occupied as T;
+			if (occupied != null && existing == null)
+			{
+				throw new InvalidOperationException(
+					$"Cannot publish '{path}' because it is occupied by {occupied.GetType().Name}, not {typeof(T).Name}.");
+			}
 			if (existing == null)
 			{
+				source.name = name;
+				createdPaths.Add(path);
 				AssetDatabase.CreateAsset(source, path);
+				AssetDatabase.SaveAssetIfDirty(source);
 				return source;
 			}
 
+			T snapshot = createSnapshot();
+			EditorUtility.CopySerialized(existing, snapshot);
+			backups.Add(new AssetBackup(existing, snapshot));
 			EditorUtility.CopySerialized(source, existing);
-			existing.name = assetName;
-			UnityEngine.Object.DestroyImmediate(source);
+			existing.name = name;
 			EditorUtility.SetDirty(existing);
+			AssetDatabase.SaveAssetIfDirty(existing);
+			if (!AssetDatabase.Contains(source))
+			{
+				UnityEngine.Object.DestroyImmediate(source);
+			}
 			return existing;
 		}
 
-		private static void WriteSourceJson(
-			string outputDirectory,
-			string manifestJson,
-			string sequenceJson,
-			CancellationToken cancellationToken)
+		private static void ValidatePublishedAsset<T>(string path, T expected)
+			where T : UnityEngine.Object
 		{
-			string absoluteDirectory = Path.Combine(
-				Application.dataPath,
-				outputDirectory.Substring("Assets/".Length));
-			Encoding utf8WithoutBom = new UTF8Encoding(false);
-			cancellationToken.ThrowIfCancellationRequested();
-			File.WriteAllText(Path.Combine(absoluteDirectory, "manifest.json"), manifestJson, utf8WithoutBom);
-			cancellationToken.ThrowIfCancellationRequested();
-			File.WriteAllText(Path.Combine(absoluteDirectory, "sequence.json"), sequenceJson, utf8WithoutBom);
-			cancellationToken.ThrowIfCancellationRequested();
+			T loaded = AssetDatabase.LoadAssetAtPath<T>(path);
+			if (loaded == null || loaded != expected)
+			{
+				throw new InvalidOperationException($"Published asset validation failed for '{path}'.");
+			}
 		}
 
-		private static string BakeClips(
-			DhmgsMotionAsset motion,
-			string outputDirectory,
-			string assetId,
-			DhmgsAssetWriteOptions options,
-			out AnimationClip genericClip,
-			out AnimationClip humanoidInPlaceClip,
-			out AnimationClip humanoidRootMotionClip,
-			CancellationToken cancellationToken)
+		private static void StageRemoval(
+			string path,
+			string transactionDirectory,
+			ICollection<string> transactionFolders,
+			ICollection<MovedAsset> removedOutputs)
 		{
-			genericClip = null;
-			humanoidInPlaceClip = null;
-			humanoidRootMotionClip = null;
-			string notes = string.Empty;
-			cancellationToken.ThrowIfCancellationRequested();
-
-			if (options.BakeGenericClip)
+			if (AssetDatabase.LoadMainAssetAtPath(path) == null)
 			{
-				if (options.GenericRig == null)
-				{
-					notes += "\nGeneric skipped: no rig selected.";
-				}
-				else
-				{
-					AnimationClip clip = null;
-					try
-					{
-						clip = DhmgsAnimationClipBaker.BakeGeneric(
-							motion,
-							options.GenericRig,
-							out string error,
-							cancellationToken);
-						if (clip == null)
-						{
-							notes += $"\nGeneric failed: {error}";
-						}
-						else
-						{
-							cancellationToken.ThrowIfCancellationRequested();
-							genericClip = SaveClipAsset(clip, outputDirectory, $"{assetId}_generic");
-							notes += $"\nGeneric: {outputDirectory}/{assetId}_generic.anim";
-						}
-					}
-					catch
-					{
-						DestroyTransientClip(clip);
-						throw;
-					}
-				}
+				return;
 			}
-
-			cancellationToken.ThrowIfCancellationRequested();
-			if (options.BakeHumanoidClips)
+			EnsureAssetFolder(transactionDirectory, transactionFolders);
+			string temporaryPath = $"{transactionDirectory}/{Path.GetFileName(path)}";
+			string error = AssetDatabase.MoveAsset(path, temporaryPath);
+			if (!string.IsNullOrEmpty(error))
 			{
-				if (options.HumanoidRig == null)
-				{
-					notes += "\nHumanoid skipped: no rig selected.";
-				}
-				else
-				{
-					AnimationClip inPlace = null;
-					AnimationClip rootMotion = null;
-					try
-					{
-						if (!DhmgsAnimationClipBaker.BakeHumanoidVariants(
-							motion,
-							options.HumanoidRig,
-							out inPlace,
-							out rootMotion,
-							out string error,
-							cancellationToken))
-						{
-							notes += $"\nHumanoid failed: {error}";
-						}
-						else
-						{
-							cancellationToken.ThrowIfCancellationRequested();
-							humanoidInPlaceClip = SaveClipAsset(
-								inPlace,
-								outputDirectory,
-								$"{assetId}_humanoid_inplace");
-							cancellationToken.ThrowIfCancellationRequested();
-							humanoidRootMotionClip = SaveClipAsset(
-								rootMotion,
-								outputDirectory,
-								$"{assetId}_humanoid_rootmotion");
-							notes += $"\nHumanoid In-Place: {outputDirectory}/{assetId}_humanoid_inplace.anim";
-							notes += $"\nHumanoid Root Motion: {outputDirectory}/{assetId}_humanoid_rootmotion.anim";
-						}
-					}
-					catch
-					{
-						DestroyTransientClip(inPlace);
-						DestroyTransientClip(rootMotion);
-						throw;
-					}
-				}
+				throw new InvalidOperationException($"Could not stage removal of '{path}': {error}");
 			}
-
-			return notes;
+			removedOutputs.Add(new MovedAsset(path, temporaryPath));
 		}
 
-		private static AnimationClip SaveClipAsset(AnimationClip source, string directory, string name)
+		private static void RestoreMovedAsset(MovedAsset moved)
 		{
-			string path = $"{directory}/{name}.anim";
-			source.name = name;
-			AnimationClip existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
-			if (existing == null)
+			if (AssetDatabase.LoadMainAssetAtPath(moved.TemporaryPath) == null)
 			{
-				AssetDatabase.CreateAsset(source, path);
-				return source;
+				if (AssetDatabase.LoadMainAssetAtPath(moved.OriginalPath) != null)
+				{
+					return;
+				}
+				throw new InvalidOperationException(
+					$"Both the original and rollback copy are missing for '{moved.OriginalPath}'.");
 			}
+			string error = AssetDatabase.MoveAsset(moved.TemporaryPath, moved.OriginalPath);
+			if (!string.IsNullOrEmpty(error))
+			{
+				throw new InvalidOperationException(
+					$"Could not restore '{moved.OriginalPath}' during rollback: {error}");
+			}
+		}
 
-			EditorUtility.CopySerialized(source, existing);
-			UnityEngine.Object.DestroyImmediate(source);
-			EditorUtility.SetDirty(existing);
-			return existing;
+		private static void DeleteRetiredOutput(string path)
+		{
+			if (AssetDatabase.LoadMainAssetAtPath(path) == null)
+			{
+				return;
+			}
+			if (!AssetDatabase.DeleteAsset(path) || AssetDatabase.LoadMainAssetAtPath(path) != null)
+			{
+				throw new IOException($"Could not delete retired output '{path}'.");
+			}
 		}
 
 		private static void EnsureAssetFolder(string path)
+		{
+			EnsureAssetFolder(path, null);
+		}
+
+		private static void EnsureAssetFolder(string path, ICollection<string> createdFolders)
 		{
 			string[] parts = path.Split('/');
 			string current = parts[0];
@@ -258,9 +635,34 @@ namespace Mnnh.Dhmgs.Editor
 				string next = $"{current}/{parts[index]}";
 				if (!AssetDatabase.IsValidFolder(next))
 				{
-					AssetDatabase.CreateFolder(current, parts[index]);
+					string guid = AssetDatabase.CreateFolder(current, parts[index]);
+					if (string.IsNullOrEmpty(guid) || !AssetDatabase.IsValidFolder(next))
+					{
+						throw new IOException($"Could not create asset folder '{next}'.");
+					}
+					createdFolders?.Add(next);
 				}
 				current = next;
+			}
+		}
+
+		private static void DeleteFolderIfEmpty(string assetPath)
+		{
+			if (!AssetDatabase.IsValidFolder(assetPath))
+			{
+				return;
+			}
+			string relative = assetPath.Substring("Assets".Length)
+				.TrimStart('/', '\\')
+				.Replace('/', Path.DirectorySeparatorChar);
+			string absolute = Path.Combine(Application.dataPath, relative);
+			if (Directory.Exists(absolute) && Directory.EnumerateFileSystemEntries(absolute).Any())
+			{
+				return;
+			}
+			if (!AssetDatabase.DeleteAsset(assetPath) && AssetDatabase.IsValidFolder(assetPath))
+			{
+				throw new IOException($"Could not remove empty rollback folder '{assetPath}'.");
 			}
 		}
 
@@ -281,10 +683,15 @@ namespace Mnnh.Dhmgs.Editor
 			string[] segments = normalized.Split('/');
 			foreach (string segment in segments)
 			{
-				if (segment.Length == 0 || segment == "." || segment == "..")
+				if (segment.Length == 0
+					|| segment == "."
+					|| segment == ".."
+					|| segment.TrimEnd(' ', '.') != segment
+					|| segment.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+					|| IsReservedWindowsPathSegment(segment))
 				{
 					throw new ArgumentException(
-						"The output root must use canonical asset-path segments without '.' or '..'.",
+						"The output root contains a non-canonical or reserved asset-path segment.",
 						nameof(path));
 				}
 			}
@@ -302,34 +709,53 @@ namespace Mnnh.Dhmgs.Editor
 			return normalized;
 		}
 
-		private static string Sanitize(string value)
+		internal static string CreateAssetId(DhmgsImportResult import)
 		{
-			if (string.IsNullOrWhiteSpace(value))
+			if (import == null || string.IsNullOrWhiteSpace(import.SourceId))
 			{
-				throw new ArgumentException("The source ID must not be empty.", nameof(value));
+				throw new ArgumentException("The source ID must not be empty.", nameof(import));
 			}
-			string sanitized = value;
-			foreach (char invalid in Path.GetInvalidFileNameChars())
+			if (import.SourceId == "." || import.SourceId == "..")
 			{
-				sanitized = sanitized.Replace(invalid, '_');
+				throw new ArgumentException("The source ID cannot be a dot or traversal segment.", nameof(import));
 			}
-			sanitized = sanitized.Replace('/', '_').Replace('\\', '_');
-			return sanitized;
+
+			if (int.TryParse(
+					import.SourceId,
+					NumberStyles.None,
+					CultureInfo.InvariantCulture,
+					out int attemptId)
+				&& attemptId >= 0
+				&& import.SourceId == attemptId.ToString(CultureInfo.InvariantCulture))
+			{
+				return import.SourceId;
+			}
+
+			string sourceKey = string.IsNullOrEmpty(import.SourceKey)
+				? DhmgsImportPipeline.CreateSourceKey(import.SourceId)
+				: import.SourceKey;
+			return sourceKey;
 		}
 
-		private static void ValidateAssetId(string value)
+		private static bool IsReservedWindowsPathSegment(string segment)
 		{
-			if (string.IsNullOrWhiteSpace(value)
-				|| value == "."
-				|| value == ".."
-				|| value.IndexOf('/') >= 0
-				|| value.IndexOf('\\') >= 0)
+			string stem = segment.Split('.')[0];
+			if (stem.Equals("CON", StringComparison.OrdinalIgnoreCase)
+				|| stem.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+				|| stem.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+				|| stem.Equals("NUL", StringComparison.OrdinalIgnoreCase))
 			{
-				throw new ArgumentException("The source ID cannot be a dot or traversal segment.", nameof(value));
+				return true;
 			}
+
+			return stem.Length == 4
+				&& stem[3] >= '1'
+				&& stem[3] <= '9'
+				&& (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+					|| stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase));
 		}
 
-		private static void DestroyTransientClip(AnimationClip clip)
+		internal static void DestroyTransientClip(AnimationClip clip)
 		{
 			if (clip != null && !AssetDatabase.Contains(clip))
 			{
