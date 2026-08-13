@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] - 2026-08-13
+
+### Fixed
+
+- Restricted automatic project setup to the interactive main Unity Editor so Asset Import Worker and preview processes no longer race the per-project marker, repeat settings writes, or duplicate installation logs.
+
 ## [0.7.0] - 2026-08-13
 
 - Added `DHMGS > 새 SMPLX 아바타 등록...`: validate an artist FBX against the official SMPL-X skeleton subset, preserve fixed-shape meshes and company blendshapes in a project-owned wrapper prefab, and optionally append it idempotently to the imported Full Demo avatar roster.

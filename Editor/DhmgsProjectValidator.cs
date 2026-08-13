@@ -9,13 +9,22 @@ namespace Mnnh.Dhmgs.Editor
 	[InitializeOnLoad]
 	internal static class DhmgsProjectValidator
 	{
-		internal const string FallbackPackageVersion = "0.7.0";
+		internal const string FallbackPackageVersion = "0.7.1";
 		private const string AutoConfigurationKeyPrefix = "Mnnh.Dhmgs.AutoProjectConfiguration";
 
 		static DhmgsProjectValidator()
 		{
-			// Package installation and updates reload this Editor assembly. Delay required-setting
-			// repair until import completes; ConfigureProject gates validation once per project/version.
+			if (!ShouldAutoConfigure(
+				Application.isBatchMode,
+				AssetDatabase.IsAssetImportWorkerProcess()))
+			{
+				return;
+			}
+
+			// Package installation and updates reload this Editor assembly in the main Editor and
+			// import workers. Only the interactive main Editor may mutate project settings.
+			// Delay required-setting repair until import completes; ConfigureProject gates
+			// validation once per project/version.
 			EditorApplication.delayCall += AutoConfigureAfterImport;
 		}
 
@@ -59,7 +68,9 @@ namespace Mnnh.Dhmgs.Editor
 		private static void AutoConfigureAfterImport()
 		{
 			EditorApplication.delayCall -= AutoConfigureAfterImport;
-			if (Application.isBatchMode)
+			if (!ShouldAutoConfigure(
+				Application.isBatchMode,
+				AssetDatabase.IsAssetImportWorkerProcess()))
 			{
 				return;
 			}
@@ -113,6 +124,11 @@ namespace Mnnh.Dhmgs.Editor
 			}
 			PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 			return true;
+		}
+
+		internal static bool ShouldAutoConfigure(bool isBatchMode, bool isAssetImportWorkerProcess)
+		{
+			return !isBatchMode && !isAssetImportWorkerProcess;
 		}
 
 		private static string ResolvePackageVersion()

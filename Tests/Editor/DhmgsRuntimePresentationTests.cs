@@ -238,7 +238,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 		[Test]
 		public void ProjectSetup_AutoConfiguresOncePerPackageVersionAndKeepsManualCommands()
 		{
-			const string currentVersion = "0.7.0";
+			const string currentVersion = "0.7.1";
 			string projectA = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectA");
 			string projectB = Path.Combine(Path.GetTempPath(), "DhmgsAutoSetupProjectB");
 			string first = global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
@@ -259,7 +259,7 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			Assert.That(first, Is.Not.EqualTo(
 				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.BuildAutoConfigurationKey(
 					projectA,
-					"0.6.11")),
+					"0.7.0")),
 				"A package update must get a fresh automatic-setup marker.");
 			Assert.That(global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.FallbackPackageVersion,
 				Is.EqualTo(currentVersion));
@@ -269,8 +269,12 @@ namespace Mnnh.Dhmgs.Editor.Tests
 			Assert.That(source, Does.Contain("[InitializeOnLoad]"));
 			Assert.That(source, Does.Contain(
 				"EditorApplication.delayCall += AutoConfigureAfterImport;"));
-			Assert.That(source, Does.Contain("if (Application.isBatchMode)"),
-				"Batch jobs must not mutate checked-in ProjectSettings or consume the interactive setup marker.");
+			Assert.That(source, Does.Contain("AssetDatabase.IsAssetImportWorkerProcess()"));
+			Assert.That(
+				source.Split(new[] { "AssetDatabase.IsAssetImportWorkerProcess()" },
+					System.StringSplitOptions.None).Length - 1,
+				Is.EqualTo(2),
+				"Both initialization and the delayed callback must reject import-worker processes.");
 			Assert.That(source, Does.Contain(
 				"if (EditorApplication.isCompiling || EditorApplication.isUpdating)"));
 			Assert.That(source, Does.Contain(
@@ -281,6 +285,41 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"private static void AutoConfigureAfterImport()",
 				System.StringComparison.Ordinal);
 			Assert.That(autoMethod, Is.GreaterThanOrEqualTo(0));
+			int constructor = source.IndexOf(
+				"static DhmgsProjectValidator()",
+				System.StringComparison.Ordinal);
+			int constructorWorkerGuard = source.IndexOf(
+				"AssetDatabase.IsAssetImportWorkerProcess()",
+				constructor,
+				System.StringComparison.Ordinal);
+			int constructorReturn = source.IndexOf(
+				"return;",
+				constructorWorkerGuard,
+				System.StringComparison.Ordinal);
+			int constructorSchedule = source.IndexOf(
+				"EditorApplication.delayCall += AutoConfigureAfterImport;",
+				constructor,
+				System.StringComparison.Ordinal);
+			Assert.That(constructorWorkerGuard, Is.GreaterThan(constructor));
+			Assert.That(constructorReturn, Is.GreaterThan(constructorWorkerGuard));
+			Assert.That(constructorSchedule, Is.GreaterThan(constructorReturn),
+				"Import workers must be rejected before automatic setup is scheduled.");
+			int callbackWorkerGuard = source.IndexOf(
+				"AssetDatabase.IsAssetImportWorkerProcess()",
+				autoMethod,
+				System.StringComparison.Ordinal);
+			int callbackReturn = source.IndexOf(
+				"return;",
+				callbackWorkerGuard,
+				System.StringComparison.Ordinal);
+			int compilingGuard = source.IndexOf(
+				"if (EditorApplication.isCompiling || EditorApplication.isUpdating)",
+				autoMethod,
+				System.StringComparison.Ordinal);
+			Assert.That(callbackWorkerGuard, Is.GreaterThan(autoMethod));
+			Assert.That(callbackReturn, Is.GreaterThan(callbackWorkerGuard));
+			Assert.That(compilingGuard, Is.GreaterThan(callbackReturn),
+				"A delayed callback must reject import workers before it can reschedule or mutate settings.");
 			Assert.That(source.IndexOf(
 				"ConfigureProject(packageVersion, configurationKey);",
 				autoMethod,
@@ -314,6 +353,22 @@ namespace Mnnh.Dhmgs.Editor.Tests
 				"TMP must remain a validation warning instead of an automatic import.");
 			Assert.That(source, Does.Not.Contain("AssetDatabase.SaveAssets()"),
 				"Automatic setup must not save unrelated dirty user assets.");
+		}
+
+		[TestCase(false, false, true)]
+		[TestCase(true, false, false)]
+		[TestCase(false, true, false)]
+		[TestCase(true, true, false)]
+		public void ProjectSetup_AutomaticConfigurationRunsOnlyInInteractiveMainEditor(
+			bool isBatchMode,
+			bool isAssetImportWorkerProcess,
+			bool expected)
+		{
+			Assert.That(
+				global::Mnnh.Dhmgs.Editor.DhmgsProjectValidator.ShouldAutoConfigure(
+					isBatchMode,
+					isAssetImportWorkerProcess),
+				Is.EqualTo(expected));
 		}
 
 		[Test]
