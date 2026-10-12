@@ -25,6 +25,10 @@ namespace Mnnh.Dhmgs
 		public bool IsPlaying => _playing;
 		public DhmgsMotionAsset Motion => _motion;
 		public int CurrentFrame => _clock?.CurrentFrame ?? 0;
+		public bool CanSeek => _playing && _motion != null && _motion.IsValid &&
+			_clock is IDhmgsSeekablePlaybackClock seekable && seekable.CanSeek;
+		public bool IsPaused => _clock is IDhmgsSeekablePlaybackClock seekable && seekable.IsPaused;
+		public bool IsSeeking => _clock is IDhmgsSeekablePlaybackClock seekable && seekable.IsSeeking;
 
 		public DhmgsRigDriver ActiveAvatarDriver => DriverAt(_avatars, _activeAvatar);
 		public DhmgsRigDriver ActiveClothesDriver => DriverAt(_clothes, _activeClothes);
@@ -95,6 +99,25 @@ namespace Mnnh.Dhmgs
 		public void SetPlaybackSpeed(float speed)
 		{
 			_clock?.SetSpeed(speed);
+		}
+
+		public bool SeekFrame(int frame)
+		{
+			if (!CanSeek)
+			{
+				return false;
+			}
+			((IDhmgsSeekablePlaybackClock)_clock).SeekFrame(Mathf.Clamp(frame, 0, _motion.frameCount - 1));
+			ApplyFrame(_clock.CurrentFrame);
+			return true;
+		}
+
+		public void SetPaused(bool paused)
+		{
+			if (_playing && _clock is IDhmgsSeekablePlaybackClock seekable)
+			{
+				seekable.SetPaused(paused);
+			}
 		}
 
 		public string AvatarName(int index)

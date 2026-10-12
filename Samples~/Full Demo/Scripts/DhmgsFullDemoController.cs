@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-
-using Mnnh.Dhmgs;
+using System.Threading.Tasks;
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,15 +13,12 @@ namespace Mnnh.Dhmgs.Samples
 		private const int MaxLogLines = 12;
 
 		[SerializeField] private DhmgsMotionPlayer _player;
-		[SerializeField] private DhmgsMotionAsset _bundledMotion;
-		[SerializeField] private bool _playOnStart = true;
 		[SerializeField] private bool _loop = true;
 		[SerializeField] private string _defaultBaseUrl = "http://192.168.1.128:8090";
 		[SerializeField] private Camera _previewCamera;
-		[SerializeField] private DhmgsFixedAvatarCamera _directPreviewCamera;
 		[SerializeField] private DhmgsFixedAvatarCamera _humanoidPreviewCamera;
-		[SerializeField] private Button _directResetCameraButton;
-		[SerializeField] private Button _humanoidResetCameraButton;
+		[SerializeField] private DhmgsFullDemoPlayback _playback;
+		[SerializeField] private DhmgsFullDemoViewSettings _viewSettings;
 
 		[Header("Fetch")]
 		[SerializeField] private InputField _attemptIdInput;
@@ -32,110 +28,69 @@ namespace Mnnh.Dhmgs.Samples
 		[SerializeField] private Text _operationStatusLabel;
 		[SerializeField] private Text _logLabel;
 
-		[Header("Playback Controls")]
-		[SerializeField] private Dropdown _avatarDropdown;
-		[SerializeField] private Dropdown _clothesDropdown;
-		[SerializeField] private Slider _avatarOpacitySlider;
-		[SerializeField] private Slider _clothesOpacitySlider;
-		[SerializeField] private Slider _videoOpacitySlider;
-		[SerializeField] private Slider _speedSlider;
-		[SerializeField] private Text _avatarOpacityValue;
-		[SerializeField] private Text _clothesOpacityValue;
-		[SerializeField] private Text _videoOpacityValue;
-		[SerializeField] private Text _speedValue;
-		[SerializeField] private Text _playbackStatusLabel;
-
 		private readonly List<string> _logLines = new List<string>();
-		private DhmgsMotionAsset _activeMotion;
-		private bool _importing;
 		private CancellationTokenSource _importCancellation;
 		private DhmgsSampleImportContext _importContext;
-		private int _operationVersion;
 
 		private void Awake()
 		{
-			_importContext = new DhmgsSampleImportContext(
-				this,
-				_player,
-				_previewCamera,
-				_humanoidPreviewCamera);
+			EnsureInitialized();
+		}
+
+		private void EnsureInitialized()
+		{
+			if (_playback == null)
+			{
+				_playback = GetComponent<DhmgsFullDemoPlayback>();
+			}
+			if (_viewSettings == null)
+			{
+				_viewSettings = GetComponent<DhmgsFullDemoViewSettings>();
+			}
+			if (_importContext == null)
+			{
+				_importContext = new DhmgsSampleImportContext(
+					this,
+					_player,
+					_previewCamera,
+					_humanoidPreviewCamera);
+			}
 		}
 
 		private void OnEnable()
 		{
+			EnsureInitialized();
 			_fetchButton?.onClick.AddListener(Fetch);
-			_directResetCameraButton?.onClick.AddListener(ResetDirectPreviewCamera);
-			_humanoidResetCameraButton?.onClick.AddListener(ResetHumanoidPreviewCamera);
-			_avatarDropdown?.onValueChanged.AddListener(OnAvatarChanged);
-			_clothesDropdown?.onValueChanged.AddListener(OnClothesChanged);
-			_avatarOpacitySlider?.onValueChanged.AddListener(OnAvatarOpacityChanged);
-			_clothesOpacitySlider?.onValueChanged.AddListener(OnClothesOpacityChanged);
-			_videoOpacitySlider?.onValueChanged.AddListener(OnVideoOpacityChanged);
-			_speedSlider?.onValueChanged.AddListener(OnSpeedChanged);
-		}
-
-		private void Start()
-		{
-			_activeMotion = _bundledMotion;
+			DhmgsFullDemoImportGateway.AvailabilityChanged += OnImportAvailabilityChanged;
+			_viewSettings?.SetImportContext(_importContext);
 			if (_serverLabel != null)
 			{
 				_serverLabel.text = $"Server  {_defaultBaseUrl}";
 			}
-
-			BindSelectors();
-			RefreshControlValues();
 			ConfigureEditorControls();
-			if (_playOnStart && _activeMotion != null &&
-				Play(_activeMotion, new DhmgsRealtimeClock(_loop)))
-			{
-				AppendLog($"Bundled motion {_activeMotion.attemptId} is playing.");
-			}
-		}
-
-		private void Update()
-		{
-			if (_playbackStatusLabel == null)
-			{
-				return;
-			}
-
-			if (_player == null || _activeMotion == null)
-			{
-				_playbackStatusLabel.text = "No motion assigned";
-				return;
-			}
-
-			string state = _player.IsPlaying ? "Playing" : "Stopped";
-			_playbackStatusLabel.text =
-				$"{state}  |  {_activeMotion.attemptId}  |  Frame {_player.CurrentFrame + 1}/{_activeMotion.frameCount}";
 		}
 
 		private void OnDisable()
 		{
 			_fetchButton?.onClick.RemoveListener(Fetch);
-			_directResetCameraButton?.onClick.RemoveListener(ResetDirectPreviewCamera);
-			_humanoidResetCameraButton?.onClick.RemoveListener(ResetHumanoidPreviewCamera);
-			_avatarDropdown?.onValueChanged.RemoveListener(OnAvatarChanged);
-			_clothesDropdown?.onValueChanged.RemoveListener(OnClothesChanged);
-			_avatarOpacitySlider?.onValueChanged.RemoveListener(OnAvatarOpacityChanged);
-			_clothesOpacitySlider?.onValueChanged.RemoveListener(OnClothesOpacityChanged);
-			_videoOpacitySlider?.onValueChanged.RemoveListener(OnVideoOpacityChanged);
-			_speedSlider?.onValueChanged.RemoveListener(OnSpeedChanged);
-			_operationVersion++;
-			_importing = false;
-			_importCancellation?.Cancel();
+			DhmgsFullDemoImportGateway.AvailabilityChanged -= OnImportAvailabilityChanged;
+			CancellationTokenSource pendingImport = _importCancellation;
 			_importCancellation = null;
-			DhmgsFullDemoImportGateway.StopPreview(_importContext);
+			pendingImport?.Cancel();
+			ReleasePlayback();
+			_viewSettings?.SetImportContext(null);
+			_viewSettings?.ResetMainCamera();
+			SetFetchInteractable(false);
 		}
 
-		public void Fetch()
+		public async void Fetch()
 		{
-			FetchAndPlay();
+			await FetchAndPlayAsync();
 		}
 
-		private async void FetchAndPlay()
+		private async Task FetchAndPlayAsync()
 		{
-			if (_importing)
+			if (_importCancellation != null)
 			{
 				AppendLog("A Fetch operation is already running.");
 				return;
@@ -151,16 +106,17 @@ namespace Mnnh.Dhmgs.Samples
 				return;
 			}
 
-			int operation = ++_operationVersion;
-			CancellationTokenSource cancellation = new CancellationTokenSource();
+			if (!isActiveAndEnabled || _playback == null || !_playback.isActiveAndEnabled || _player == null)
+			{
+				AppendLog("[Error] An active playback session and player are required.");
+				return;
+			}
+
+			using CancellationTokenSource cancellation = new CancellationTokenSource();
 			_importCancellation = cancellation;
-			_importing = true;
-			SetFetchInteractable(false);
-			SetProgress(0f, $"[{attemptId}] Downloading...");
-			AppendLog($"[{attemptId}] Fetch started.");
 			Action<DhmgsSampleImportProgress> onProgress = value =>
 			{
-				if (OwnsOperation(operation, cancellation))
+				if (OwnsOperation(cancellation))
 				{
 					OnImportProgress(value);
 				}
@@ -168,24 +124,30 @@ namespace Mnnh.Dhmgs.Samples
 
 			try
 			{
+				_viewSettings?.ResetMainCamera();
+				_playback.BeginLoad();
+				SetFetchInteractable(false);
+				SetProgress(0f, $"[{attemptId}] Downloading...");
+				AppendLog($"[{attemptId}] Fetch started.");
 				DhmgsSampleImportResult imported = await DhmgsFullDemoImportGateway.ImportAndSaveAsync(
 					_importContext,
 					_defaultBaseUrl,
 					attemptId,
 					onProgress,
 					cancellation.Token);
-				if (!OwnsOperation(operation, cancellation))
+				if (!OwnsOperation(cancellation))
 				{
 					return;
 				}
 
-				_activeMotion = imported.Motion;
-				if (!Play(imported.Motion, imported.Clock ?? new DhmgsRealtimeClock(_loop)))
+				if (!_playback.LoadAndPlay(imported.Motion, imported.Clock ?? new DhmgsRealtimeClock(_loop)))
 				{
+					DhmgsFullDemoImportGateway.StopPreview(_importContext);
 					SetProgress(0f, $"[{attemptId}] Imported but could not play.");
 					return;
 				}
-				SetProgress(1f, $"[{attemptId}] Imported, baked, and playing.");
+				_viewSettings?.OnMotionLoaded();
+				SetProgress(1f, string.Empty);
 				AppendSummary(imported.Summary);
 				AppendLog(imported.HasVideoPreview
 					? $"[{attemptId}] Video preview synchronized."
@@ -193,15 +155,18 @@ namespace Mnnh.Dhmgs.Samples
 			}
 			catch (OperationCanceledException)
 			{
-				if (OwnsOperation(operation, cancellation, allowCancelled: true))
+				if (OwnsOperation(cancellation, allowCancelled: true))
 				{
+					ReleasePlayback();
+					SetProgress(0f, $"[{attemptId}] Fetch cancelled.");
 					AppendLog($"[{attemptId}] Fetch cancelled.");
 				}
 			}
 			catch (Exception exception)
 			{
-				if (OwnsOperation(operation, cancellation, allowCancelled: true))
+				if (OwnsOperation(cancellation, allowCancelled: true))
 				{
+					ReleasePlayback();
 					Debug.LogException(exception, this);
 					AppendLog($"[Error] [{attemptId}] {exception.Message}");
 					SetProgress(0f, $"[{attemptId}] Failed.");
@@ -209,170 +174,43 @@ namespace Mnnh.Dhmgs.Samples
 			}
 			finally
 			{
-				cancellation.Dispose();
-				if (this != null && operation == _operationVersion &&
-					ReferenceEquals(_importCancellation, cancellation))
+				if (this != null && ReferenceEquals(_importCancellation, cancellation))
 				{
-					_importing = false;
 					_importCancellation = null;
-					SetFetchInteractable(DhmgsFullDemoImportGateway.IsAvailable);
+					SetFetchInteractable(isActiveAndEnabled && DhmgsFullDemoImportGateway.IsAvailable);
+					_playback?.CancelLoad();
 				}
 			}
 		}
 
 		private bool OwnsOperation(
-			int operation,
 			CancellationTokenSource cancellation,
 			bool allowCancelled = false)
 		{
-			return this != null && isActiveAndEnabled && operation == _operationVersion &&
+			return this != null && isActiveAndEnabled &&
 				ReferenceEquals(_importCancellation, cancellation) &&
 				(allowCancelled || !cancellation.IsCancellationRequested);
 		}
 
-		private bool Play(DhmgsMotionAsset motion, IDhmgsPlaybackClock clock)
+		private void ReleasePlayback()
 		{
-			if (_player == null || motion == null || !motion.IsValid)
+			_playback?.Clear();
+			DhmgsFullDemoImportGateway.StopPreview(_importContext);
+		}
+
+		private void OnImportAvailabilityChanged()
+		{
+			_viewSettings?.SetImportContext(_importContext);
+			if (_importCancellation == null)
 			{
-				AppendLog("[Error] A valid motion and player are required.");
-				return false;
+				ConfigureEditorControls();
 			}
-
-			_player.Play(motion, clock);
-			RelockPreviewCameras();
-			OnSpeedChanged(_speedSlider != null ? _speedSlider.value : 1f);
-			return _player.IsPlaying;
-		}
-
-		private void BindSelectors()
-		{
-			if (_player == null)
-			{
-				return;
-			}
-
-			BindDropdown(_avatarDropdown, _player.AvatarCount, _player.AvatarName, _player.ActiveAvatar);
-			BindDropdown(_clothesDropdown, _player.ClothesCount, _player.ClothesName, _player.ActiveClothes);
-			if (_clothesDropdown != null)
-			{
-				_clothesDropdown.interactable = _player.ClothesCount > 0;
-			}
-			if (_clothesOpacitySlider != null)
-			{
-				_clothesOpacitySlider.interactable = _player.ClothesCount > 0;
-			}
-		}
-
-		private static void BindDropdown(
-			Dropdown dropdown,
-			int count,
-			Func<int, string> nameAt,
-			int activeIndex)
-		{
-			if (dropdown == null)
-			{
-				return;
-			}
-
-			List<string> options = new List<string> { "None" };
-			for (int index = 0; index < count; index++)
-			{
-				options.Add(nameAt(index));
-			}
-			dropdown.ClearOptions();
-			dropdown.AddOptions(options);
-			dropdown.SetValueWithoutNotify(Mathf.Clamp(activeIndex + 1, 0, options.Count - 1));
-			dropdown.RefreshShownValue();
-		}
-
-		private void OnAvatarChanged(int value)
-		{
-			_player?.SetAvatarIndex(value - 1);
-			RelockPreviewCameras();
-			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
-		}
-
-		private void RelockPreviewCameras()
-		{
-			_directPreviewCamera?.Relock();
-			_humanoidPreviewCamera?.Relock();
-		}
-
-		private void ResetDirectPreviewCamera()
-		{
-			_directPreviewCamera?.ResetView();
-		}
-
-		private void ResetHumanoidPreviewCamera()
-		{
-			_humanoidPreviewCamera?.ResetView();
-		}
-
-		private void OnClothesChanged(int value)
-		{
-			_player?.SetClothesIndex(value - 1);
-			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
-		}
-
-		private void OnAvatarOpacityChanged(float value)
-		{
-			ApplyOpacity(_player?.ActiveAvatarDriver, value);
-			SetValue(_avatarOpacityValue, value);
-		}
-
-		private void OnClothesOpacityChanged(float value)
-		{
-			ApplyOpacity(_player?.ActiveClothesDriver, value);
-			SetValue(_clothesOpacityValue, value);
-		}
-
-		private void OnVideoOpacityChanged(float value)
-		{
-			DhmgsFullDemoImportGateway.SetVideoOpacity(_importContext, value);
-			SetValue(_videoOpacityValue, value);
-		}
-
-		private void OnSpeedChanged(float value)
-		{
-			float speed = Mathf.Clamp(value, 0.25f, 2f);
-			_player?.SetPlaybackSpeed(speed);
-			if (_speedValue != null)
-			{
-				_speedValue.text = $"{speed:F2}x";
-			}
-		}
-
-		private static void ApplyOpacity(DhmgsRigDriver driver, float value)
-		{
-			DhmgsSkinOpacity opacity = driver != null ? driver.GetComponent<DhmgsSkinOpacity>() : null;
-			opacity?.SetOpacity(value);
-		}
-
-		private static void SetValue(Text label, float value)
-		{
-			if (label != null)
-			{
-				label.text = value.ToString("F2");
-			}
-		}
-
-		private void RefreshControlValues()
-		{
-			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
-			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
-			OnVideoOpacityChanged(_videoOpacitySlider != null ? _videoOpacitySlider.value : 1f);
-			OnSpeedChanged(_speedSlider != null ? _speedSlider.value : 1f);
 		}
 
 		private void ConfigureEditorControls()
 		{
 			bool available = DhmgsFullDemoImportGateway.IsAvailable;
 			SetFetchInteractable(available);
-			if (_videoOpacitySlider != null)
-			{
-				_videoOpacitySlider.interactable =
-					available && DhmgsFullDemoImportGateway.SupportsVideoPreview(_importContext);
-			}
 			SetProgress(0f, available
 				? string.Empty
 				: "Fetch, baking, and video preview are Editor-only.");

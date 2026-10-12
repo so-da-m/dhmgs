@@ -37,8 +37,8 @@ namespace Mnnh.Dhmgs
 		[SerializeField] private float _maxDistance = 8f;
 		[Tooltip("드래그 1px당 회전(도). 방향을 뒤집으려면 음수.")]
 		[SerializeField] private float _orbitSpeed = 0.3f;
-		[Tooltip("휠 1노치당 거리 변화(m). 방향을 뒤집으려면 음수.")]
-		[SerializeField] private float _zoomSpeed = 0.5f;
+		[Tooltip("스크롤 입력 1단위당 거리 변화(m). 방향을 뒤집으려면 음수.")]
+		[SerializeField] private float _zoomSpeed = 0.02f;
 		[Tooltip("우클릭 드래그 1px당 패닝(거리에 비례). 방향을 뒤집으려면 음수.")]
 		[SerializeField] private float _panSpeed = 0.002f;
 
@@ -65,6 +65,9 @@ namespace Mnnh.Dhmgs
 		private float _initialPitch;
 		private float _initialDistance;
 		private bool _initialViewCaptured;
+
+		public Camera PreviewCamera => _surface.Camera;
+		public Transform TargetPivot => _targetSource != null && _target != null ? _target.Pivot : null;
 
 		private void Awake()
 		{
@@ -161,13 +164,7 @@ namespace Mnnh.Dhmgs
 
 		private void Pan(Vector2 delta)
 		{
-			Transform camT = _surface.CameraTransform;
-			if (camT == null)
-			{
-				return;
-			}
-			float scale = _panSpeed * _distance;
-			_pan += (-camT.right * delta.x - camT.up * delta.y) * scale;
+			_pan += DhmgsCameraNavigation.PanOffset(_surface.CameraTransform, delta, _distance, _panSpeed);
 		}
 
 		public void OnScroll(PointerEventData eventData)
@@ -194,7 +191,7 @@ namespace Mnnh.Dhmgs
 
 		private void UpdatePivot()
 		{
-			Transform pivot = _target != null ? _target.Pivot : null;
+			Transform pivot = TargetPivot;
 			if (pivot == null)
 			{
 				if (_lastPivot != null || _pivotLocked)
@@ -220,14 +217,12 @@ namespace Mnnh.Dhmgs
 					{
 						return;
 					}
-					Vector3 boundsOffset = bounds.center - pivot.position;
-					float maximumExpectedOffset = Mathf.Max(1f, bounds.extents.magnitude * 2f);
-					if (boundsOffset.sqrMagnitude > maximumExpectedOffset * maximumExpectedOffset)
+					if (!DhmgsCameraNavigation.TryGetFramingOffset(bounds, pivot.position, out Vector3 boundsOffset))
 					{
 						return;
 					}
 					_pivot = bounds.center;
-					_pivotOffset = _pivot - pivot.position;
+					_pivotOffset = boundsOffset;
 					_distance = CalculateFitDistance(bounds);
 				}
 				else
@@ -253,7 +248,7 @@ namespace Mnnh.Dhmgs
 			float tanHorizontal = Mathf.Max(0.01f, Mathf.Tan(horizontalHalfAngle));
 
 			float pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
-			Vector3 orbitDirection = Quaternion.Euler(-pitch, _yaw, 0f) * Vector3.forward;
+			Vector3 orbitDirection = DhmgsCameraNavigation.OrbitDirection(_yaw, pitch);
 			Quaternion cameraRotation = Quaternion.LookRotation(-orbitDirection, Vector3.up);
 			Vector3 right = cameraRotation * Vector3.right;
 			Vector3 up = cameraRotation * Vector3.up;
@@ -286,7 +281,7 @@ namespace Mnnh.Dhmgs
 			_distance = Mathf.Clamp(_distance, _minDistance, _maxDistance);
 
 			Vector3 target = _pivot + _pan;
-			Vector3 dir = Quaternion.Euler(-_pitch, _yaw, 0f) * Vector3.forward;
+			Vector3 dir = DhmgsCameraNavigation.OrbitDirection(_yaw, _pitch);
 			Transform camT = _surface.CameraTransform;
 			camT.position = target + dir * _distance;
 			camT.LookAt(target, Vector3.up);

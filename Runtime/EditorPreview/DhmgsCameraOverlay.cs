@@ -30,11 +30,39 @@ namespace Mnnh.Dhmgs
 
 		private DhmgsVideoSurface _surface;
 		private VideoPreparation _preparation;
+		private DhmgsVideoClock _clock;
 		private Rect _backupRect;
 		private bool _backedUp;
 
+		/// <summary>
+		/// Configure before Activate. Cancel the activation routine and Deactivate before reconfiguring.
+		/// </summary>
+		public void Configure(Camera camera, VideoPlayer videoPlayer, bool loop, float videoAlpha, string surfaceLayer)
+		{
+			if (camera == null)
+			{
+				throw new ArgumentNullException(nameof(camera));
+			}
+			if (videoPlayer == null)
+			{
+				throw new ArgumentNullException(nameof(videoPlayer));
+			}
+			if (_preparation != null || _clock != null || _backedUp)
+			{
+				throw new InvalidOperationException("Deactivate the video overlay before reconfiguring it.");
+			}
+
+			DestroySurface();
+			_camera = camera;
+			_videoPlayer = videoPlayer;
+			_loop = loop;
+			_surfaceLayer = surfaceLayer ?? string.Empty;
+			SetVideoAlpha(videoAlpha);
+		}
+
 		public IEnumerator Activate(DhmgsMotionAsset asset, string videoPath, Action<IDhmgsPlaybackClock> onReady)
 		{
+			ReleaseClock();
 			CancelPreparation();
 			Camera cam = ResolveCamera();
 			if (cam == null || asset == null || !asset.HasProjection || string.IsNullOrEmpty(videoPath) || _videoPlayer == null)
@@ -73,11 +101,13 @@ namespace Mnnh.Dhmgs
 			}
 
 			_videoPlayer.Play();
-			onReady?.Invoke(new DhmgsVideoClock(_videoPlayer));
+			_clock = new DhmgsVideoClock(_videoPlayer);
+			onReady?.Invoke(_clock);
 		}
 
 		public void Deactivate()
 		{
+			ReleaseClock();
 			CancelPreparation();
 			if (_surface != null)
 			{
@@ -94,8 +124,15 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
+		private void ReleaseClock()
+		{
+			_clock?.Dispose();
+			_clock = null;
+		}
+
 		private void Update()
 		{
+			_clock?.Tick();
 			if (_surface != null)
 			{
 				_surface.SetAlpha(_videoAlpha);
@@ -131,6 +168,7 @@ namespace Mnnh.Dhmgs
 			cam.ResetProjectionMatrix();
 			cam.ResetAspect();
 			cam.rect = _backupRect;
+			_backedUp = false;
 		}
 
 		private static void ApplyAspectFitRect(Camera cam, int videoWidth, int videoHeight)

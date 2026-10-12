@@ -31,6 +31,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 
 		private static readonly Dictionary<int, PreviewSession> Sessions =
 			new Dictionary<int, PreviewSession>();
+		private static readonly Dictionary<int, object> ImportOperations = new Dictionary<int, object>();
+		private static readonly HashSet<object> BackgroundPreparations = new HashSet<object>();
+		private static bool _runInBackgroundBeforePreparation;
 
 		static DhmgsFullDemoEditorImportBridge()
 		{
@@ -64,17 +67,19 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			CancellationToken cancellationToken)
 		{
 			ThrowIfUnavailable(context, cancellationToken);
-			ResetPreview(context);
-			if (context.HumanoidPreviewCamera == null)
-			{
-				throw new InvalidOperationException(
-					"The Full Demo Humanoid preview camera is not assigned.");
-			}
-
+			object operation = new object();
+			ImportOperations[context.SessionId] = operation;
 			try
 			{
+				ResetPreview(context);
+				if (context.HumanoidPreviewCamera == null)
+				{
+					throw new InvalidOperationException(
+						"The Full Demo Humanoid preview camera is not assigned.");
+				}
 				return await ImportAndSaveCoreAsync(
 					context,
+					operation,
 					baseUrl,
 					attemptId,
 					onProgress,
@@ -82,13 +87,25 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 			catch
 			{
-				ResetPreview(context);
+				// A cancelled operation may finish after this owner has started another Fetch.
+				if (OwnsOperation(context, operation))
+				{
+					ResetPreview(context);
+				}
 				throw;
+			}
+			finally
+			{
+				if (OwnsOperation(context, operation))
+				{
+					ImportOperations.Remove(context.SessionId);
+				}
 			}
 		}
 
 		private static async Task<DhmgsSampleImportResult> ImportAndSaveCoreAsync(
 			DhmgsSampleImportContext context,
+			object operation,
 			string baseUrl,
 			int attemptId,
 			Action<DhmgsSampleImportProgress> onProgress,
@@ -112,13 +129,13 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				value => Report(onProgress, value),
 				cancellationToken);
 
-			ThrowIfUnavailable(context, cancellationToken);
+			ThrowIfUnavailable(context, cancellationToken, operation);
 			if (job.HumanoidInPlaceClip == null)
 			{
 				throw new InvalidOperationException("Humanoid bake did not produce an in-place clip.");
 			}
 
-			ThrowIfUnavailable(context, cancellationToken);
+			ThrowIfUnavailable(context, cancellationToken, operation);
 			string videoPath = job.PreviewVideoPath;
 			IDhmgsPlaybackClock clock = new DhmgsRealtimeClock(loop: true);
 			bool hasVideoPreview = false;
@@ -130,10 +147,9 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				bool videoPrepared = false;
 				IDhmgsPlaybackClock preparedClock = null;
 				IDhmgsPlaybackClock videoClock;
-				bool previousRunInBackground = Application.runInBackground;
+				BeginBackgroundPreparation(operation);
 				try
 				{
-					Application.runInBackground = true;
 					videoClock = await session.Preview.PrepareClockAsync(
 						overlay.Activate(job.Motion, videoPath, value =>
 						{
@@ -148,10 +164,10 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				}
 				finally
 				{
-					Application.runInBackground = previousRunInBackground;
+					EndBackgroundPreparation(operation);
 				}
 
-				ThrowIfUnavailable(context, cancellationToken);
+				ThrowIfUnavailable(context, cancellationToken, operation);
 				if (videoClock != null)
 				{
 					clock = videoClock;
@@ -159,7 +175,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				}
 			}
 
-			ThrowIfUnavailable(context, cancellationToken);
+			ThrowIfUnavailable(context, cancellationToken, operation);
 			session ??= GetOrCreateSession(context);
 			bool humanoidPreviewStarted = session.HumanoidPreview.Play(
 				bundledYBotPreviewAvatar,
@@ -265,13 +281,12 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			}
 			session.VideoPlayer.audioOutputMode = VideoAudioOutputMode.None;
 
-			SerializedObject serialized = new SerializedObject(session.Overlay);
-			serialized.FindProperty("_camera").objectReferenceValue = session.Context.PreviewCamera;
-			serialized.FindProperty("_videoPlayer").objectReferenceValue = session.VideoPlayer;
-			serialized.FindProperty("_loop").boolValue = true;
-			serialized.FindProperty("_videoAlpha").floatValue = session.VideoOpacity;
-			serialized.FindProperty("_surfaceLayer").stringValue = "Ignore Raycast";
-			serialized.ApplyModifiedPropertiesWithoutUndo();
+			session.Overlay.Configure(
+				session.Context.PreviewCamera,
+				session.VideoPlayer,
+				loop: true,
+				videoAlpha: session.VideoOpacity,
+				surfaceLayer: "Ignore Raycast");
 			return session.Overlay;
 		}
 
@@ -295,6 +310,11 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (context == null || context.SessionId == 0)
 			{
 				return;
+			}
+			if (ImportOperations.TryGetValue(context.SessionId, out object operation))
+			{
+				ImportOperations.Remove(context.SessionId);
+				EndBackgroundPreparation(operation);
 			}
 			if (!Sessions.TryGetValue(context.SessionId, out PreviewSession session))
 			{
@@ -321,18 +341,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				return;
 			}
 
-			if (session.Preview != null)
-			{
-				session.Preview.CancelClockPreparation();
-			}
-			if (session.HumanoidPreview != null)
-			{
-				session.HumanoidPreview.Stop();
-			}
-			if (session.Overlay != null)
-			{
-				AbortOverlay(session.Overlay);
-			}
+			StopSessionPlayback(session);
 			if (context.HumanoidPreviewCamera != null)
 			{
 				context.HumanoidPreviewCamera.SetTarget(null);
@@ -341,6 +350,12 @@ namespace Mnnh.Dhmgs.Samples.Editor
 
 		private static void StopAllSessions(bool resetCameraTarget)
 		{
+			ImportOperations.Clear();
+			if (BackgroundPreparations.Count > 0)
+			{
+				BackgroundPreparations.Clear();
+				Application.runInBackground = _runInBackgroundBeforePreparation;
+			}
 			if (Sessions.Count == 0)
 			{
 				return;
@@ -360,6 +375,20 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				return;
 			}
+			StopSessionPlayback(session);
+			if (resetCameraTarget && session.Context != null &&
+				session.Context.HumanoidPreviewCamera != null)
+			{
+				session.Context.HumanoidPreviewCamera.SetTarget(null);
+			}
+			if (session.Host != null)
+			{
+				DestroySessionObject(session.Host);
+			}
+		}
+
+		private static void StopSessionPlayback(PreviewSession session)
+		{
 			if (session.Preview != null)
 			{
 				session.Preview.CancelClockPreparation();
@@ -372,15 +401,6 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				AbortOverlay(session.Overlay);
 			}
-			if (resetCameraTarget && session.Context != null &&
-				session.Context.HumanoidPreviewCamera != null)
-			{
-				session.Context.HumanoidPreviewCamera.SetTarget(null);
-			}
-			if (session.Host != null)
-			{
-				DestroySessionObject(session.Host);
-			}
 		}
 
 		private static void AbortOverlay(DhmgsCameraOverlay overlay)
@@ -389,7 +409,6 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				return;
 			}
-			overlay.CancelPreparation();
 			overlay.Deactivate();
 		}
 
@@ -417,13 +436,39 @@ namespace Mnnh.Dhmgs.Samples.Editor
 
 		private static void ThrowIfUnavailable(
 			DhmgsSampleImportContext context,
-			CancellationToken cancellationToken)
+			CancellationToken cancellationToken,
+			object operation = null)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			if (!Application.isPlaying || context == null || !context.IsActive ||
-				context.SessionId == 0 || context.Player == null)
+				context.SessionId == 0 || context.Player == null ||
+				(operation != null && !OwnsOperation(context, operation)))
 			{
 				throw new OperationCanceledException("The Full Demo context is no longer active.", cancellationToken);
+			}
+		}
+
+		private static bool OwnsOperation(DhmgsSampleImportContext context, object operation)
+		{
+			return context != null && ImportOperations.TryGetValue(context.SessionId, out object current) &&
+				ReferenceEquals(current, operation);
+		}
+
+		private static void BeginBackgroundPreparation(object operation)
+		{
+			if (BackgroundPreparations.Count == 0)
+			{
+				_runInBackgroundBeforePreparation = Application.runInBackground;
+			}
+			BackgroundPreparations.Add(operation);
+			Application.runInBackground = true;
+		}
+
+		private static void EndBackgroundPreparation(object operation)
+		{
+			if (BackgroundPreparations.Remove(operation) && BackgroundPreparations.Count == 0)
+			{
+				Application.runInBackground = _runInBackgroundBeforePreparation;
 			}
 		}
 

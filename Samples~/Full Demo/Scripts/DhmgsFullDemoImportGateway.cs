@@ -79,6 +79,7 @@ namespace Mnnh.Dhmgs.Samples
 		private static Action<DhmgsSampleImportContext> _stopPreviewHandler;
 
 		public static bool IsAvailable => _importHandler != null;
+		public static event Action AvailabilityChanged;
 
 		public static bool SupportsVideoPreview(DhmgsSampleImportContext context)
 		{
@@ -90,9 +91,14 @@ namespace Mnnh.Dhmgs.Samples
 			Action<DhmgsSampleImportContext, float> previewOpacityHandler,
 			Action<DhmgsSampleImportContext> stopPreviewHandler)
 		{
+			bool wasAvailable = IsAvailable;
 			_importHandler = importHandler;
 			_previewOpacityHandler = previewOpacityHandler;
 			_stopPreviewHandler = stopPreviewHandler;
+			if (wasAvailable != IsAvailable)
+			{
+				AvailabilityChanged?.Invoke();
+			}
 		}
 
 		public static void Unregister(ImportHandler importHandler)
@@ -102,9 +108,14 @@ namespace Mnnh.Dhmgs.Samples
 				return;
 			}
 
+			bool wasAvailable = IsAvailable;
 			_importHandler = null;
 			_previewOpacityHandler = null;
 			_stopPreviewHandler = null;
+			if (wasAvailable)
+			{
+				AvailabilityChanged?.Invoke();
+			}
 		}
 
 		public static Task<DhmgsSampleImportResult> ImportAndSaveAsync(
