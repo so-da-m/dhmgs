@@ -1,7 +1,5 @@
 Shader "Dhmgs/SkinTransparent"
 {
-	// SMPL-X 피부용 투명 셰이더. 2-pass(깊이 prime + 색상)로 셀프 오버랩 없는 단일 레이어 투명.
-	// _Opacity로 투명도 조절(슬라이더 연결용). 영상이 뒤에 있으면 낮출수록 영상이 비친다(onion-skin).
 	Properties
 	{
 		_BaseMap ("Base Map", 2D) = "white" {}
@@ -20,7 +18,6 @@ Shader "Dhmgs/SkinTransparent"
 
 		Cull Back
 
-		// 1) 깊이 prime: 가장 앞면의 깊이만 기록 → 뒷면/안쪽이 색칠에서 탈락(단일 레이어).
 		Pass
 		{
 			Name "SkinDepthPrime"
@@ -74,7 +71,6 @@ Shader "Dhmgs/SkinTransparent"
 			ENDHLSL
 		}
 
-		// 2) 색상: prime이 기록한 앞면만 통과(ZTest LEqual), 뒤(영상) 위로 알파 블렌드.
 		Pass
 		{
 			Name "SkinForward"

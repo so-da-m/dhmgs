@@ -8,10 +8,6 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Samples.Editor
 {
-	/// <summary>
-	/// Play Mode-only host for asynchronous Editor preview preparation.
-	/// The actual retargeted avatar playback is owned by DhmgsHumanoidPreview.
-	/// </summary>
 	public sealed class DhmgsFullDemoEditorPreview : MonoBehaviour
 	{
 		private Coroutine _clockMonitor;
@@ -46,8 +42,6 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				getClock,
 				cancellationToken,
 				Mathf.Max(0.1f, timeoutSeconds)));
-			// StartCoroutine may run the iterator through completion before returning.
-			// Do not resurrect a monitor that already cleared this operation's state.
 			if (ReferenceEquals(_clockCompletion, completion))
 			{
 				_clockMonitor = monitor;

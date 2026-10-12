@@ -22,7 +22,6 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
-// Joint recalculation
 using LightweightMatrixCSharp;
 
 namespace SMPLXPlugin
@@ -47,13 +46,10 @@ namespace SMPLXPlugin
 		public int poseCorrectivesQuality = 0;
 		private string[][] _poseCorrectiveSubsets = new string[][]
 		{
-        // High: All joints except pelvis, 54 joints
         new string[] { "left_hip","right_hip","spine1","left_knee","right_knee","spine2","left_ankle","right_ankle","spine3","left_foot","right_foot","neck","left_collar","right_collar","head","left_shoulder","right_shoulder","left_elbow","right_elbow","left_wrist","right_wrist","jaw","left_eye_smplhf","right_eye_smplhf","left_index1","left_index2","left_index3","left_middle1","left_middle2","left_middle3","left_pinky1","left_pinky2","left_pinky3","left_ring1","left_ring2","left_ring3","left_thumb1","left_thumb2","left_thumb3","right_index1","right_index2","right_index3","right_middle1","right_middle2","right_middle3","right_pinky1","right_pinky2","right_pinky3","right_ring1","right_ring2","right_ring3","right_thumb1","right_thumb2","right_thumb3" },
 
-        // Medium: All joints except pelvis and hands, 24 joints
         new string[] { "left_hip","right_hip","spine1","left_knee","right_knee","spine2","left_ankle","right_ankle","spine3","left_foot","right_foot","neck","left_collar","right_collar","head","left_shoulder","right_shoulder","left_elbow","right_elbow","left_wrist","right_wrist","jaw","left_eye_smplhf","right_eye_smplhf" },
 
-        // Low: Only wrists/elbows/knees, 6 joints
         new string[] { "left_knee","right_knee","left_elbow","right_elbow","left_wrist","right_wrist" }
 		};
 		private List<int> _activePoseCorrectiveJoints;
@@ -82,7 +78,6 @@ namespace SMPLXPlugin
 
 		Dictionary<string, Transform> _transformFromName;
 
-		// Joint recalculation
 		public static Dictionary<string, Matrix[]> JointMatrices = null;
 
 		public void Awake()
@@ -120,7 +115,6 @@ namespace SMPLXPlugin
 
 			_smr = FindBodyMeshRenderer();
 
-			// Get skinned mesh blend shape values
 			_numBetaShapes = 0;
 			_numExpressions = 0;
 			_numPoseCorrectives = 0;
@@ -144,8 +138,6 @@ namespace SMPLXPlugin
 			}
 		}
 
-		// 헤어/눈썹 등 부속 메시도 SkinnedMeshRenderer로 붙어 있어 첫 번째 것을 그대로 쓰면 안 된다.
-		// 부속 메시에는 Pose corrective 셰이프 키가 일부만 전사되어 있으므로, 가장 많은 메시가 SMPL-X 본체다.
 		private SkinnedMeshRenderer FindBodyMeshRenderer()
 		{
 			SkinnedMeshRenderer bodyRenderer = null;
@@ -176,7 +168,6 @@ namespace SMPLXPlugin
 		{
 			SMPLX.JointMatrices = new Dictionary<string, Matrix[]>();
 
-			// Setup gender specific joint regressors
 			string[] genders = new string[] { "female", "neutral", "male" };
 			foreach (string gender in genders)
 			{
@@ -192,7 +183,6 @@ namespace SMPLXPlugin
 					templateJ[i] = new Matrix(NUM_JOINTS, 1);
 				}
 
-				// Setup matrix values from JSON resource files
 				string name = "smplx_betas_to_joints_" + gender;
 				TextAsset ta = Resources.Load<TextAsset>(name);
 				if (ta == null)
@@ -205,7 +195,6 @@ namespace SMPLXPlugin
 
 				for (int i = 0; i < NUM_JOINTS; i++)
 				{
-					// Init beta regressor matrix
 					for (int j = 0; j < NUM_BETAS; j++)
 					{
 						(betasToJoints[0])[i, j] = node["betasJ_regr"][i][0][j].AsDouble;
@@ -213,7 +202,6 @@ namespace SMPLXPlugin
 						(betasToJoints[2])[i, j] = node["betasJ_regr"][i][2][j].AsDouble;
 					}
 
-					// Init joint template matrix
 					double x = node["template_J"][i][0].AsDouble;
 					double y = node["template_J"][i][1].AsDouble;
 					double z = node["template_J"][i][2].AsDouble;
@@ -260,7 +248,7 @@ namespace SMPLXPlugin
 			_defaultShape = true;
 			for (int i = 0; i < NUM_BETAS; i++)
 			{
-				_smr.SetBlendShapeWeight(i, betas[i] * 100); // blend shape weights are specified in percentage
+				_smr.SetBlendShapeWeight(i, betas[i] * 100);
 
 				if (betas[i] != 0.0f)
 					_defaultShape = false;
@@ -278,7 +266,7 @@ namespace SMPLXPlugin
 			}
 
 			for (int i = 0; i < NUM_EXPRESSIONS; i++)
-				_smr.SetBlendShapeWeight(i + NUM_BETAS, expressions[i] * 100); // blend shape weights are specified in percentage
+				_smr.SetBlendShapeWeight(i + NUM_BETAS, expressions[i] * 100);
 		}
 
 		public void SnapToGroundPlane()
@@ -304,7 +292,6 @@ namespace SMPLXPlugin
 			localPosition.y = -yMin;
 			gameObject.transform.localPosition = localPosition;
 
-			// Update joint world positions
 			UpdateJointPositions(false);
 
 		}
@@ -316,12 +303,8 @@ namespace SMPLXPlugin
 			poseCorrectives = _numPoseCorrectives;
 		}
 
-		// Return Unity Quaternion for given SMPL-X rodrigues notation
 		public static Quaternion QuatFromRodrigues(float rodX, float rodY, float rodZ)
 		{
-			// Local joint coordinate systems
-			//   SMPL-X: X-Right, Y-Up, Z-Back, Right-handed
-			//   Unity:  X-Left,  Y-Up, Z-Back, Left-handed
 			Vector3 axis = new Vector3(-rodX, rodY, rodZ);
 			float angle_deg = -axis.magnitude * Mathf.Rad2Deg;
 			Vector3.Normalize(axis);
@@ -425,7 +408,6 @@ namespace SMPLXPlugin
 			}
 		}
 
-		// Updates list of active pose corrective joints
 		public void SetPoseCorrectivesQuality(int quality)
 		{
 			poseCorrectivesQuality = quality;
@@ -433,7 +415,6 @@ namespace SMPLXPlugin
 			if (!HasPoseCorrectives())
 				return;
 
-			// Reset all pose correctives
 			int blendShapeCount = _smr.sharedMesh.blendShapeCount;
 			for (int i = 0; i < blendShapeCount; i++)
 			{
@@ -470,17 +451,12 @@ namespace SMPLXPlugin
 				string name = _bodyJointNames[i];
 				Quaternion quat = _transformFromName[name].localRotation;
 
-				// Local joint coordinate systems
-				//   Unity:  X-Left,  Y-Up, Z-Back, Left-handed
-				//   SMPL-X: X-Right, Y-Up, Z-Back, Right-handed
 				Quaternion quatSMPLX = new Quaternion(-quat.x, quat.y, quat.z, -quat.w);
 				Matrix4x4 m = Matrix4x4.Rotate(quatSMPLX);
-				// Subtract identity matrix to get proper pose shape weights
 				m[0, 0] = m[0, 0] - 1.0f;
 				m[1, 1] = m[1, 1] - 1.0f;
 				m[2, 2] = m[2, 2] - 1.0f;
 
-				// Get corrective pose start index
 				int poseStartIndex = _numBetaShapes + _numExpressions + (i - 1) * 9;
 
 				_smr.SetBlendShapeWeight(poseStartIndex + 0, 100.0f * m[0, 0]);
@@ -503,18 +479,14 @@ namespace SMPLXPlugin
 			{
 				if (_sharedMeshDefault == null)
 				{
-					// Do not clone mesh if we haven't modified the shape parameters yet
 					if (_defaultShape)
 						return false;
 
-					// Clone default shared mesh so that we can modify later the shared mesh bind pose without affecting other shared instances.
-					// Note that this will drastically increase the Unity scene file size and make Unity Editor very slow on save when multiple bodies like this are used.
 					_sharedMeshDefault = _smr.sharedMesh;
 					_smr.sharedMesh = (Mesh)Instantiate(_smr.sharedMesh);
 					Debug.LogWarning("[SMPL-X] Cloning shared mesh to allow for joint recalculation on beta shape change [" + gameObject.name + "]. Note that this will increase the current scene file size significantly if model contains pose correctives.");
 				}
 
-				// Save pose and repose to T-Pose
 				for (int i = 0; i < NUM_JOINTS; i++)
 				{
 					Transform joint = _transformFromName[_bodyJointNames[i]];
@@ -522,14 +494,12 @@ namespace SMPLXPlugin
 					joint.localRotation = Quaternion.identity;
 				}
 
-				// Create beta value matrix
 				Matrix betaMatrix = new Matrix(NUM_BETAS, 1);
 				for (int row = 0; row < NUM_BETAS; row++)
 				{
 					betaMatrix[row, 0] = betas[row];
 				}
 
-				// Apply joint regressor to beta matrix to calculate new joint positions
 				string gender = "";
 				if (modelType == SMPLX.ModelType.Female)
 					gender = "female";
@@ -551,37 +521,28 @@ namespace SMPLXPlugin
 				Matrix newJointsY = betasToJoints[1] * betaMatrix + templateJ[1];
 				Matrix newJointsZ = betasToJoints[2] * betaMatrix + templateJ[2];
 
-				// Update joint position cache
 				for (int index = 0; index < NUM_JOINTS; index++)
 				{
 					Transform joint = _transformFromName[_bodyJointNames[index]];
 
-					// Convert regressor coordinate system (OpenGL) to Unity coordinate system by negating X value
 					Vector3 position = new Vector3(-(float)newJointsX[index, 0], (float)newJointsY[index, 0], (float)newJointsZ[index, 0]);
 
-					// Regressor joint positions from joint calculation are centered at origin in world space
-					// Transform to game object space for correct world space position
 					joint.position = gameObject.transform.TransformPoint(position);
 				}
 
-				// Set new bind pose
 				Matrix4x4[] bindPoses = _smr.sharedMesh.bindposes;
 				Transform[] bones = _smr.bones;
 				for (int i = 0; i < bones.Length; i++)
 				{
-					// The bind pose is bone's inverse transformation matrix.
-					// Make this matrix relative to the avatar root so that we can move the root game object around freely.
 					bindPoses[i] = bones[i].worldToLocalMatrix * gameObject.transform.localToWorldMatrix;
 				}
 				_smr.sharedMesh.bindposes = bindPoses;
 
-				// Restore pose
 				for (int i = 0; i < NUM_JOINTS; i++)
 				{
 					Transform joint = _transformFromName[_bodyJointNames[i]];
 					joint.localRotation = _jointRotations[i];
 
-					// Update joint position cache
 					_jointPositions[i] = joint.position;
 
 				}
@@ -590,7 +551,6 @@ namespace SMPLXPlugin
 			{
 				for (int i = 0; i < NUM_JOINTS; i++)
 				{
-					// Update joint position cache
 					Transform joint = _transformFromName[_bodyJointNames[i]];
 					_jointPositions[i] = joint.position;
 				}
@@ -606,9 +566,6 @@ namespace SMPLXPlugin
 		}
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Custom editor code
-	////////////////////////////////////////////////////////////////////////////////
 #if UNITY_EDITOR
 	[CustomEditor(typeof(SMPLX))]
 	public class SMPLX_Editor : Editor
@@ -622,11 +579,10 @@ namespace SMPLXPlugin
 		private string _modelInfoText;
 		private string[] _poseCorrectiveOptions = new string[] { "High - All (54)", "Medium - No Hands (24)", "Low - Wrists+Elbows+Knees (6)" };
 
-
 		void Awake()
 		{
 			_target = (SMPLX)target;
-			_target.Awake(); // initialize member values in Editor mode
+			_target.Awake();
 
 			int shapes, expressions, poseCorrectives;
 			_target.GetModelInfo(out shapes, out expressions, out poseCorrectives);
@@ -635,21 +591,18 @@ namespace SMPLXPlugin
 
 		void OnEnable()
 		{
-			// Fetch the objects from the GameObject script to display in the inspector
 			_modelTypeProperty = serializedObject.FindProperty("modelType");
 		}
 
 		public override void OnInspectorGUI()
 		{
-			Undo.RecordObject(_target, _target.name); // allow GUI undo in custom editor
+			Undo.RecordObject(_target, _target.name);
 			Color defaultColor = GUI.backgroundColor;
 
 			using (new EditorGUILayout.VerticalScope("Box"))
 			{
-				// Info
 				EditorGUILayout.HelpBox(_modelInfoText, MessageType.None);
 
-				// Shape
 				if (_target.HasBetaShapes() || _target.HasPoseCorrectives())
 				{
 					using (new EditorGUILayout.VerticalScope("Box"))
@@ -673,7 +626,6 @@ namespace SMPLXPlugin
 									else
 										_target.EnablePoseCorrectives(false);
 
-									// Save changes to modified script variables so that they persist when starting Play mode or reloading scene
 									SerializedProperty usePoseCorrectivesProperty = serializedObject.FindProperty("usePoseCorrectives");
 									usePoseCorrectivesProperty.boolValue = usePoseCorrectivesNew;
 									serializedObject.ApplyModifiedProperties();
@@ -684,7 +636,6 @@ namespace SMPLXPlugin
 								if (poseCorrectivesQualityNew != _target.poseCorrectivesQuality)
 								{
 									_target.SetPoseCorrectivesQuality(poseCorrectivesQualityNew);
-									// Save changes to modified script variables so that they persist when starting Play mode or reloading scene
 									SerializedProperty poseCorrectivesQualityProperty = serializedObject.FindProperty("poseCorrectivesQuality");
 									poseCorrectivesQualityProperty.intValue = poseCorrectivesQualityNew;
 									serializedObject.ApplyModifiedProperties();
@@ -707,7 +658,6 @@ namespace SMPLXPlugin
 									EditorGUILayout.BeginHorizontal();
 									EditorGUILayout.LabelField("Beta " + i, GUILayout.Width(50));
 									_target.betas[i] = EditorGUILayout.Slider(_target.betas[i], -5, 5);
-									// no effect: GUILayout.FlexibleSpace();
 									EditorGUILayout.EndHorizontal();
 								}
 
@@ -756,7 +706,6 @@ namespace SMPLXPlugin
 					}
 				}
 
-				// Expression
 				if (_target.HasExpressions())
 				{
 					using (new EditorGUILayout.VerticalScope("Box"))
@@ -810,7 +759,6 @@ namespace SMPLXPlugin
 					}
 				}
 
-				// Pose
 				using (new EditorGUILayout.VerticalScope("Box"))
 				{
 					using (new EditorGUILayout.VerticalScope("Box"))
@@ -849,7 +797,6 @@ namespace SMPLXPlugin
 					}
 				}
 
-				// Drawing
 				using (new EditorGUILayout.VerticalScope("Box"))
 				{
 					using (new EditorGUILayout.VerticalScope("Box"))
@@ -871,7 +818,6 @@ namespace SMPLXPlugin
 
 							_target.showJointPositions = showJointPositions;
 
-							// Save changes to modified script variables so that they persist when starting Play mode or reloading scene
 							SerializedProperty showJointPositionsProperty = serializedObject.FindProperty("showJointPositions");
 							showJointPositionsProperty.boolValue = showJointPositions;
 							serializedObject.ApplyModifiedProperties();
@@ -883,7 +829,6 @@ namespace SMPLXPlugin
 				}
 			}
 
-			// Apply changes to the serializedProperty - always do this at the end of OnInspectorGUI.
 			serializedObject.ApplyModifiedProperties();
 		}
 
@@ -901,6 +846,6 @@ namespace SMPLXPlugin
 			}
 		}
 	}
-#endif // UNITY_EDITOR
+#endif
 
-} // namespace SMPLXPlugin
+}

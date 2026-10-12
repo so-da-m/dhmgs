@@ -7,10 +7,6 @@ using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// Optional runtime UI for playing an already imported motion asset.
-	/// Importing, downloading, and baking remain Editor-only responsibilities.
-	/// </summary>
 	public sealed class DhmgsMotionPlayerPanel : MonoBehaviour
 	{
 		[SerializeField] private DhmgsMotionAsset _motion;

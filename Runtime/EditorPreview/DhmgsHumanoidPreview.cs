@@ -6,10 +6,6 @@ using UnityEditor;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// Plays a baked Humanoid clip on an arbitrary Humanoid avatar and keeps it
-	/// synchronized with the same frame clock as the direct SMPL-X preview.
-	/// </summary>
 	public sealed class DhmgsHumanoidPreview : MonoBehaviour, IDhmgsFramingTarget, IDhmgsFramingBounds
 	{
 		private GameObject _instance;
@@ -35,10 +31,6 @@ namespace Mnnh.Dhmgs
 			return DhmgsFramingBoundsUtility.TryCalculate(_instance.transform, out bounds);
 		}
 
-		/// <summary>
-		/// Instantiates <paramref name="avatarPrefab"/> at an isolated world position
-		/// and evaluates the Humanoid clip manually from <paramref name="source"/>.
-		/// </summary>
 		public bool Play(
 			GameObject avatarPrefab,
 			AnimationClip clip,

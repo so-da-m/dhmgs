@@ -86,11 +86,6 @@ namespace Mnnh.Dhmgs.Editor
 		public bool CanCancel { get; }
 	}
 
-	/// <summary>
-	/// Immutable description of one Editor import. The selected SMPL-X model is the pose
-	/// extraction source for both Generic and Humanoid clips; a retarget preview avatar such
-	/// as Y Bot is deliberately not part of this request.
-	/// </summary>
 	public sealed class DhmgsImportJobRequest
 	{
 		public DhmgsImportJobRequest(

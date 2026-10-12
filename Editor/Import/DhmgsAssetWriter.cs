@@ -113,7 +113,6 @@ namespace Mnnh.Dhmgs.Editor
 	internal static class DhmgsAssetWriter
 	{
 		public const string DefaultOutputRoot = "Assets/Mnnh.Dhmgs/Content/Generated";
-		internal static Action<string> PublishCheckpointForTests { get; set; }
 
 		private sealed class AssetBackup : IDisposable
 		{
@@ -299,8 +298,6 @@ namespace Mnnh.Dhmgs.Editor
 			try
 			{
 				EnsureAssetFolder(outputDirectory, createdFolders);
-				// Raw server payload belongs in the project-local Library cache. Retire files
-				// created by pre-0.7 importers so the build-facing folder has one exact output set.
 				StageRemoval(
 					$"{outputDirectory}/manifest.json",
 					transactionDirectory,
@@ -337,7 +334,6 @@ namespace Mnnh.Dhmgs.Editor
 					backups,
 					createdPaths);
 				import.Motion = motion;
-				PublishCheckpointForTests?.Invoke("motion");
 
 				AnimationClip generic = publishGeneric
 					? PublishNativeAsset(
@@ -366,7 +362,6 @@ namespace Mnnh.Dhmgs.Editor
 						backups,
 						createdPaths)
 					: null;
-				PublishCheckpointForTests?.Invoke("clips");
 
 				ValidatePublishedAsset(motionPath, motion);
 				if (publishGeneric)
@@ -385,7 +380,6 @@ namespace Mnnh.Dhmgs.Editor
 				{
 					try
 					{
-						PublishCheckpointForTests?.Invoke("cleanup");
 						DeleteRetiredOutput(removed.TemporaryPath);
 					}
 					catch (Exception cleanupError)

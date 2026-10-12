@@ -2,18 +2,15 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>재생 타이밍 추상화. 플레이어는 프레임 인덱스가 영상에서 오는지 시계에서 오는지 모른다.</summary>
 	public interface IDhmgsPlaybackClock
 	{
 		void Begin(int frameCount, float fps);
 
-		/// <summary>재생 속도 배율(1=기본). 영상은 playbackSpeed, 시계는 시간 배율.</summary>
 		void SetSpeed(float speed);
 
 		int CurrentFrame { get; }
 	}
 
-	/// <summary>영상 없을 때: fps 기반 시계. 기본 루프.</summary>
 	public sealed class DhmgsRealtimeClock : IDhmgsPlaybackClock
 	{
 		private readonly bool _loop;
@@ -37,7 +34,6 @@ namespace Mnnh.Dhmgs
 		public void SetSpeed(float speed)
 		{
 			speed = Mathf.Max(0.01f, speed);
-			// 현재 프레임 위치를 유지하며 속도 변경(연속성 보장 — 시작 시각을 재기준화).
 			double frames = (Time.timeAsDouble - _startTime) * _fps * _speed;
 			_speed = speed;
 			_startTime = Time.timeAsDouble - frames / (_fps * _speed);

@@ -9,10 +9,6 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	/// <summary>
-	/// The single public Editor import facade. Window, samples, and custom internal tools use
-	/// the same immutable request, validation, cancellation, progress, and result contract.
-	/// </summary>
 	public static class DhmgsImportService
 	{
 		public const string DefaultBaseUrl = DhmgsImportPipeline.DefaultBaseUrl;

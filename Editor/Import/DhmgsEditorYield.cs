@@ -6,7 +6,6 @@ using UnityEditor;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	/// <summary>Keeps long Editor-only main-thread work responsive without moving Unity APIs to a worker thread.</summary>
 	internal sealed class DhmgsEditorYield
 	{
 		private readonly double _budgetSeconds;

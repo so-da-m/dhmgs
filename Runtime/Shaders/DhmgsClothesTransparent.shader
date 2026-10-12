@@ -1,8 +1,5 @@
 Shader "Dhmgs/ClothesTransparent"
 {
-	// 의상용 투명 셰이더. 내용은 Dhmgs/SkinTransparent와 동일하나 렌더 큐만 한 단계 뒤(Transparent+100).
-	// 이렇게 하면 피부보다 항상 나중에 그려져, 피부가 버퍼에 먼저 있고 그 위로 블렌드된다(피부가 비침).
-	// _Opacity 프로퍼티명은 피부와 동일하므로 DhmgsSkinOpacity가 그대로 동작한다.
 	Properties
 	{
 		_BaseMap ("Base Map", 2D) = "white" {}
@@ -21,7 +18,6 @@ Shader "Dhmgs/ClothesTransparent"
 
 		Cull Back
 
-		// 1) 깊이 prime: 가장 앞면의 깊이만 기록 → 뒷면/안쪽이 색칠에서 탈락(단일 레이어).
 		Pass
 		{
 			Name "ClothesDepthPrime"
@@ -75,7 +71,6 @@ Shader "Dhmgs/ClothesTransparent"
 			ENDHLSL
 		}
 
-		// 2) 색상: prime이 기록한 앞면만 통과(ZTest LEqual), 뒤(피부) 위로 알파 블렌드.
 		Pass
 		{
 			Name "ClothesForward"

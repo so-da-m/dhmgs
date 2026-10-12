@@ -133,9 +133,6 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				bool previousRunInBackground = Application.runInBackground;
 				try
 				{
-					// VideoPlayer preparation and its timeout are both driven by the PlayerLoop.
-					// Keep this bounded Editor-only wait moving when Unity loses focus, then
-					// restore the project's authored runtime behavior immediately afterwards.
 					Application.runInBackground = true;
 					videoClock = await session.Preview.PrepareClockAsync(
 						overlay.Activate(job.Motion, videoPath, value =>

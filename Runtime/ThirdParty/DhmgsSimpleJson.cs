@@ -1,15 +1,4 @@
-/* * * * *
- * A simple JSON Parser / builder
- * ------------------------------
- * 
- * It mainly has been written as a simple JSON parser. It can build a JSON string
- * from the node-tree, or generate a node tree from any valid JSON string.
- * 
- * Written by Bunny83 
- * 2012-06-09
- * 
- * Changelog now external. See Changelog.txt
- * 
+/*
  * The MIT License (MIT)
  * 
  * Copyright (c) 2012-2019 Markus Göbel (Bunny83)
@@ -61,7 +50,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 
 	public abstract partial class JSONNode
 	{
-		#region Enumerators
 		public struct Enumerator
 		{
 			private enum Type { None, Array, Object }
@@ -159,13 +147,9 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			}
 		}
 
-		#endregion Enumerators
-
-		#region common interface
-
-		public static bool forceASCII = false; // Use Unicode by default
-		public static bool longAsString = false; // lazy creator creates a JSONString instead of JSONNumber
-		public static bool allowLineComments = true; // allow "//"-style comments at the end of a line
+		public static bool forceASCII = false;
+		public static bool longAsString = false;
+		public static bool allowLineComments = true;
 
 		public abstract JSONNodeType Tag { get; }
 
@@ -263,11 +247,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		public KeyEnumerator Keys { get { return new KeyEnumerator(GetEnumerator()); } }
 		public ValueEnumerator Values { get { return new ValueEnumerator(GetEnumerator()); } }
 
-		#endregion common interface
-
-		#region typecasting properties
-
-
 		public virtual double AsDouble
 		{
 			get
@@ -355,11 +334,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 				return this as JSONObject;
 			}
 		}
-
-
-		#endregion typecasting properties
-
-		#region operators
 
 		public static implicit operator JSONNode(string s)
 		{
@@ -458,8 +432,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		{
 			return base.GetHashCode();
 		}
-
-		#endregion operators
 
 		[ThreadStatic]
 		private static StringBuilder m_EscapeBuilder;
@@ -697,7 +669,7 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 						}
 						Token.Append(aJSON[i]);
 						break;
-					case '\uFEFF': // remove / ignore BOM (Byte Order Mark)
+					case '\uFEFF':
 						break;
 
 					default:
@@ -716,7 +688,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		}
 
 	}
-	// End of JSONNode
 
 	public partial class JSONArray : JSONNode
 	{
@@ -817,7 +788,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			}
 		}
 
-
 		internal override void WriteToStringBuilder(StringBuilder aSB, int aIndent, int aIndentInc, JSONTextMode aMode)
 		{
 			aSB.Append('[');
@@ -840,7 +810,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			aSB.Append(']');
 		}
 	}
-	// End of JSONArray
 
 	public partial class JSONObject : JSONNode
 	{
@@ -857,7 +826,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		public override bool IsObject { get { return true; } }
 
 		public override Enumerator GetEnumerator() { return new Enumerator(m_Dict.GetEnumerator()); }
-
 
 		public override JSONNode this[string aKey]
 		{
@@ -1016,7 +984,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		}
 
 	}
-	// End of JSONObject
 
 	public partial class JSONString : JSONNode
 	{
@@ -1026,7 +993,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 		public override bool IsString { get { return true; } }
 
 		public override Enumerator GetEnumerator() { return new Enumerator(); }
-
 
 		public override string Value
 		{
@@ -1071,7 +1037,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			m_Data = "";
 		}
 	}
-	// End of JSONString
 
 	public partial class JSONNumber : JSONNode
 	{
@@ -1158,7 +1123,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			m_Data = 0;
 		}
 	}
-	// End of JSONNumber
 
 	public partial class JSONBool : JSONNode
 	{
@@ -1220,7 +1184,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			m_Data = false;
 		}
 	}
-	// End of JSONBool
 
 	public partial class JSONNull : JSONNode
 	{
@@ -1270,7 +1233,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			aSB.Append("null");
 		}
 	}
-	// End of JSONNull
 
 	internal partial class JSONLazyCreator : JSONNode
 	{
@@ -1297,7 +1259,7 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 				m_Node.Add(aVal);
 			else
 				m_Node.Add(m_Key, aVal);
-			m_Node = null; // Be GC friendly.
+			m_Node = null;
 			return aVal;
 		}
 
@@ -1423,7 +1385,6 @@ namespace Mnnh.Dhmgs.ThirdParty.SimpleJson
 			aSB.Append("null");
 		}
 	}
-	// End of JSONLazyCreator
 
 	public static class JSON
 	{

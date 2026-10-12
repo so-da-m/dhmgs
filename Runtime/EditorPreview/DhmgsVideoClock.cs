@@ -3,7 +3,6 @@ using UnityEngine.Video;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>Editor preview clock synchronized to a VideoPlayer frame.</summary>
 	internal sealed class DhmgsVideoClock : IDhmgsPlaybackClock
 	{
 		private readonly VideoPlayer _player;

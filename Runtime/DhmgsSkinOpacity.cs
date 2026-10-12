@@ -4,10 +4,6 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// Controls the package shaders' per-renderer _Opacity value without cloning or mutating
-	/// shared materials. Attach this component to the root that owns the skinned renderers.
-	/// </summary>
 	public sealed class DhmgsSkinOpacity : MonoBehaviour
 	{
 		private readonly struct MaterialSlot
@@ -29,7 +25,6 @@ namespace Mnnh.Dhmgs
 		private MaterialPropertyBlock _propertyBlock;
 		private bool _built;
 
-		/// <summary>0 is transparent and 1 is opaque.</summary>
 		public void SetOpacity(float opacity)
 		{
 			EnsureBuilt();

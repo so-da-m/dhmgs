@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	/// <summary>Non-developer surface for removing Full Demo avatar wrappers safely.</summary>
 	internal sealed class DhmgsSmplxAvatarRemovalWindow : EditorWindow
 	{
 		private readonly List<DhmgsSmplxAvatarRemovalEntry> _entries =

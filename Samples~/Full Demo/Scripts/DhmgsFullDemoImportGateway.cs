@@ -20,10 +20,6 @@ namespace Mnnh.Dhmgs.Samples
 		public string Status { get; }
 	}
 
-	/// <summary>
-	/// Explicit sample-owned references used by Editor preview code. Passing this context
-	/// keeps additive scenes and unrelated tools from being discovered or modified globally.
-	/// </summary>
 	public sealed class DhmgsSampleImportContext
 	{
 		private static int _nextSessionId;
@@ -69,10 +65,6 @@ namespace Mnnh.Dhmgs.Samples
 		public bool HasVideoPreview { get; }
 	}
 
-	/// <summary>
-	/// Runtime-safe registration point. The sample Editor assembly installs downloading,
-	/// baking, and video-preview handlers. Player builds retain only serialized playback.
-	/// </summary>
 	public static class DhmgsFullDemoImportGateway
 	{
 		public delegate Task<DhmgsSampleImportResult> ImportHandler(

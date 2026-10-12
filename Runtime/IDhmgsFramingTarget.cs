@@ -2,16 +2,11 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>Provides the stable transform used as an orbit target.</summary>
 	public interface IDhmgsFramingTarget
 	{
 		Transform Pivot { get; }
 	}
 
-	/// <summary>
-	/// Optional companion to <see cref="IDhmgsFramingTarget"/>. Preview cameras use these
-	/// renderer bounds to fit the complete subject instead of relying on a rig-specific distance.
-	/// </summary>
 	public interface IDhmgsFramingBounds
 	{
 		bool TryGetFramingBounds(out Bounds bounds);

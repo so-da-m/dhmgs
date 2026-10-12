@@ -21,10 +21,6 @@ namespace Mnnh.Dhmgs.Editor
 				return;
 			}
 
-			// Package installation and updates reload this Editor assembly in the main Editor and
-			// import workers. Only the interactive main Editor may mutate project settings.
-			// Delay required-setting repair until import completes; ConfigureProject gates
-			// validation once per project/version.
 			EditorApplication.delayCall += AutoConfigureAfterImport;
 		}
 

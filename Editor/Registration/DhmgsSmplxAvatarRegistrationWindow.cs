@@ -8,7 +8,6 @@ using UnityEngine.UIElements;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	/// <summary>Project-owned wrapper authoring UI for fixed-shape SMPL-X avatars.</summary>
 	internal sealed class DhmgsSmplxAvatarRegistrationWindow : EditorWindow
 	{
 		private ObjectField _sourceField;

@@ -31,10 +31,6 @@ namespace Mnnh.Dhmgs.Editor
 		internal DhmgsSmplxAvatarValidationResult Validation { get; set; }
 	}
 
-	/// <summary>
-	/// Creates a project-owned wrapper prefab around an FBX model and optionally adds one
-	/// prefab instance to the currently imported Full Demo avatar roster.
-	/// </summary>
 	internal static class DhmgsSmplxAvatarRegistrar
 	{
 		internal const string DefaultAvatarFolder = "Assets/Mnnh.Dhmgs/Content/Avatars";

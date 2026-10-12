@@ -4,13 +4,6 @@ using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// 런타임에 카메라를 생성해 활성 아바타를 RenderTexture로 찍어 RawImage에 띄우는 인스펙션 뷰.
-	/// pivot(아바타 pelvis)은 재생 시작 시 한 번만 잡아 고정하므로 pelvis bob에 흔들리지 않는다.
-	/// 그 고정 pivot 주위로 마우스 드래그=orbit, 휠=zoom(dolly)만 사용자 입력으로 움직인다.
-	/// 입력은 UI 이벤트(IDragHandler/IScrollHandler)라 RawImage 위에 있을 때만 반응한다 → 이 컴포넌트는 RawImage에 붙인다.
-	/// 드롭다운으로 활성 아바타가 바뀌면 pivot을 자동으로 다시 잡는다(orbit 각도/거리는 유지).
-	/// </summary>
 	[RequireComponent(typeof(RawImage))]
 	public sealed class DhmgsFixedAvatarCamera : MonoBehaviour, IDragHandler, IScrollHandler
 	{
@@ -77,13 +70,11 @@ namespace Mnnh.Dhmgs
 		{
 			CaptureInitialView();
 
-			// 입력(IDragHandler/IScrollHandler)이 이 RawImage에서 오므로 보이는 이미지=입력 대상으로 항상 일치시킨다.
 			RawImage output = GetComponent<RawImage>();
 			_surface.Create("DhmgsFixedAvatarCamera", output, _textureWidth, _textureHeight,
 				_cullingMask, _fieldOfView, _nearClip, _farClip, _background);
 			_surface.SetEnabled(false);
 
-			// 대상은 항상 명시해 additive scene과 다른 도구의 플레이어를 건드리지 않는다.
 			_target = _targetSource as IDhmgsFramingTarget;
 			_boundsTarget = _targetSource as IDhmgsFramingBounds;
 			if (_target == null && _targetSource != null)
@@ -107,7 +98,6 @@ namespace Mnnh.Dhmgs
 			_surface.Destroy();
 		}
 
-		/// <summary>다음 프레임에 pivot을 다시 잡도록 강제.</summary>
 		public void Relock()
 		{
 			_pivotLocked = false;
@@ -115,7 +105,6 @@ namespace Mnnh.Dhmgs
 			_surface.Clear();
 		}
 
-		/// <summary>Restores the authored orbit, zoom, and pan, then frames the current target again.</summary>
 		public void ResetView()
 		{
 			CaptureInitialView();
@@ -139,10 +128,6 @@ namespace Mnnh.Dhmgs
 			_initialViewCaptured = true;
 		}
 
-		/// <summary>
-		/// Changes the framing target at runtime. This is used by Editor previews that are
-		/// created after Play Mode has already started.
-		/// </summary>
 		public void SetTarget(MonoBehaviour targetSource)
 		{
 			_targetSource = targetSource;
@@ -168,14 +153,12 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		// 좌클릭 드래그: 고정 pivot 주위 회전.
 		private void Orbit(Vector2 delta)
 		{
 			_yaw += delta.x * _orbitSpeed;
 			_pitch += delta.y * _orbitSpeed;
 		}
 
-		// 우(중)클릭 드래그: 카메라 시야평면(right/up)으로 pivot 평행이동. 거리에 비례시켜 줌과 무관하게 일관된 속도.
 		private void Pan(Vector2 delta)
 		{
 			Transform camT = _surface.CameraTransform;
@@ -209,7 +192,6 @@ namespace Mnnh.Dhmgs
 			ApplyOrbit();
 		}
 
-		// 대상의 pivot Transform을 추적하며 위치를 한 번 잡는다. 대상(또는 활성 아바타)이 바뀌면 다시 잡는다(각도/거리는 유지).
 		private void UpdatePivot()
 		{
 			Transform pivot = _target != null ? _target.Pivot : null;
@@ -242,8 +224,6 @@ namespace Mnnh.Dhmgs
 					float maximumExpectedOffset = Mathf.Max(1f, bounds.extents.magnitude * 2f);
 					if (boundsOffset.sqrMagnitude > maximumExpectedOffset * maximumExpectedOffset)
 					{
-						// A moved skinned mesh can report its previous-frame bounds once. Waiting one
-						// render avoids permanently locking the camera to that stale world position.
 						return;
 					}
 					_pivot = bounds.center;
@@ -260,8 +240,6 @@ namespace Mnnh.Dhmgs
 			}
 			if (_pivotLocked)
 			{
-				// Follow root translation while preserving the initial full-body framing offset.
-				// This keeps travelling motion in frame without refitting on every animated pose.
 				_pivot = pivot.position + _pivotOffset;
 			}
 		}

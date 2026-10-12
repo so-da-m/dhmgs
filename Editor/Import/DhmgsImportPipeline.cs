@@ -74,10 +74,6 @@ namespace Mnnh.Dhmgs.Editor
 		public DhmgsImportStage Stage { get; }
 	}
 
-	/// <summary>
-	/// Editor-only authoring pipeline. Downloads or accepts a DHMGS archive and produces
-	/// a converted in-memory DhmgsMotionAsset. Persisting Unity assets is a separate step.
-	/// </summary>
 	internal static class DhmgsImportPipeline
 	{
 		private sealed class ParsedArchive

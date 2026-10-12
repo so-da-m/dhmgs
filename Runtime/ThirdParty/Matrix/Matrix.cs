@@ -16,7 +16,7 @@ namespace LightweightMatrixCSharp
 		private int[] pi;
 		private double detOfP = 1;
 
-		public Matrix(int iRows, int iCols)         // Matrix Class constructor
+		public Matrix(int iRows, int iCols)
 		{
 			rows = iRows;
 			cols = iCols;
@@ -29,10 +29,10 @@ namespace LightweightMatrixCSharp
 			{
 				rows = matrix.GetLength(0);
 				cols = matrix.GetLength(1);
-				mat = matrix.Cast<double>().ToArray();  // NOTE copies elements
+				mat = matrix.Cast<double>().ToArray();
 			}
 			else
-			{  // column-major
+			{
 				rows = matrix.GetLength(1);
 				cols = matrix.GetLength(0);
 				mat = new double[rows * cols];
@@ -52,7 +52,7 @@ namespace LightweightMatrixCSharp
 			return (rows == cols);
 		}
 
-		public double this[int iRow, int iCol]      // Access this matrix as a 2D array
+		public double this[int iRow, int iCol]
 		{
 			get { return mat[iRow * cols + iCol]; }
 			set { mat[iRow * cols + iCol] = value; }
@@ -72,7 +72,7 @@ namespace LightweightMatrixCSharp
 				this[i, k] = v[i, 0];
 		}
 
-		public void MakeLU()                        // Function for LU decomposition
+		public void MakeLU()
 		{
 			if (!IsSquare())
 				throw new MException("The matrix is not square!");
@@ -91,7 +91,7 @@ namespace LightweightMatrixCSharp
 			for (int k = 0; k < cols - 1; k++)
 			{
 				p = 0;
-				for (int i = k; i < rows; i++)      // find the row with the biggest pivot
+				for (int i = k; i < rows; i++)
 				{
 					if (Math.Abs(U[i, k]) > p)
 					{
@@ -99,12 +99,12 @@ namespace LightweightMatrixCSharp
 						k0 = i;
 					}
 				}
-				if (p == 0) // samé nuly ve sloupci
+				if (p == 0)
 					throw new MException("The matrix is singular!");
 
 				pom1 = pi[k];
 				pi[k] = pi[k0];
-				pi[k0] = pom1;    // switch two rows in permutation matrix
+				pi[k0] = pom1;
 
 				for (int i = 0; i < k; i++)
 				{
@@ -116,7 +116,7 @@ namespace LightweightMatrixCSharp
 				if (k != k0)
 					detOfP *= -1;
 
-				for (int i = 0; i < cols; i++)                  // Switch rows in U
+				for (int i = 0; i < cols; i++)
 				{
 					pom2 = U[k, i];
 					U[k, i] = U[k0, i];
@@ -132,7 +132,7 @@ namespace LightweightMatrixCSharp
 			}
 		}
 
-		public Matrix SolveWith(Matrix v)                        // Function solves Ax = v in confirmity with solution vector "v"
+		public Matrix SolveWith(Matrix v)
 		{
 			if (rows != cols)
 				throw new MException("The matrix is not square!");
@@ -145,7 +145,7 @@ namespace LightweightMatrixCSharp
 
 			Matrix b = new Matrix(rows, 1);
 			for (int i = 0; i < rows; i++)
-				b[i, 0] = v[pi[i], 0];   // switch two items in "v" due to permutation matrix
+				b[i, 0] = v[pi[i], 0];
 
 			Matrix z = SubsForth(L, b);
 			Matrix x = SubsBack(U, z);
@@ -153,8 +153,7 @@ namespace LightweightMatrixCSharp
 			return x;
 		}
 
-		// TODO check for redundancy with MakeLU() and SolveWith()
-		public void MakeRref()                                    // Function makes reduced echolon form
+		public void MakeRref()
 		{
 			int lead = 0;
 			for (int r = 0; r < rows; r++)
@@ -198,7 +197,7 @@ namespace LightweightMatrixCSharp
 			}
 		}
 
-		public Matrix Invert()                                   // Function returns the inverted matrix
+		public Matrix Invert()
 		{
 			if (L == null)
 				MakeLU();
@@ -215,8 +214,7 @@ namespace LightweightMatrixCSharp
 			return inv;
 		}
 
-
-		public double Det()                         // Function for determinant
+		public double Det()
 		{
 			if (L == null)
 				MakeLU();
@@ -226,7 +224,7 @@ namespace LightweightMatrixCSharp
 			return det;
 		}
 
-		public Matrix GetP()                        // Function returns permutation matrix "P" due to permutation vector "pi"
+		public Matrix GetP()
 		{
 			if (L == null)
 				MakeLU();
@@ -237,7 +235,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public Matrix Duplicate()                   // Function returns the copy of this matrix
+		public Matrix Duplicate()
 		{
 			Matrix matrix = new Matrix(rows, cols);
 			for (int i = 0; i < rows; i++)
@@ -246,7 +244,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public static Matrix SubsForth(Matrix A, Matrix b)          // Function solves Ax = b for A as a lower triangular matrix
+		public static Matrix SubsForth(Matrix A, Matrix b)
 		{
 			if (A.L == null)
 				A.MakeLU();
@@ -263,7 +261,7 @@ namespace LightweightMatrixCSharp
 			return x;
 		}
 
-		public static Matrix SubsBack(Matrix A, Matrix b)           // Function solves Ax = b for A as an upper triangular matrix
+		public static Matrix SubsBack(Matrix A, Matrix b)
 		{
 			if (A.L == null)
 				A.MakeLU();
@@ -280,7 +278,7 @@ namespace LightweightMatrixCSharp
 			return x;
 		}
 
-		public static Matrix ZeroMatrix(int iRows, int iCols)       // Function generates the zero matrix
+		public static Matrix ZeroMatrix(int iRows, int iCols)
 		{
 			Matrix matrix = new Matrix(iRows, iCols);
 			for (int i = 0; i < iRows; i++)
@@ -289,7 +287,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public static Matrix IdentityMatrix(int iRows, int iCols)   // Function generates the identity matrix
+		public static Matrix IdentityMatrix(int iRows, int iCols)
 		{
 			Matrix matrix = ZeroMatrix(iRows, iCols);
 			for (int i = 0; i < Math.Min(iRows, iCols); i++)
@@ -297,7 +295,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public static Matrix RandomMatrix(int iRows, int iCols, int dispersion)       // Function generates the random matrix
+		public static Matrix RandomMatrix(int iRows, int iCols, int dispersion)
 		{
 			Random random = new Random();
 			Matrix matrix = new Matrix(iRows, iCols);
@@ -307,7 +305,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public static Matrix Parse(string ps)                        // Function parses the matrix from string
+		public static Matrix Parse(string ps)
 		{
 			string s = NormalizeMatrixString(ps);
 			string[] rows = Regex.Split(s, "\r\n");
@@ -326,7 +324,7 @@ namespace LightweightMatrixCSharp
 			return matrix;
 		}
 
-		public override string ToString()                           // Function returns matrix as a string
+		public override string ToString()
 		{
 			StringBuilder s = new StringBuilder();
 			for (int i = 0; i < rows; i++)
@@ -338,7 +336,7 @@ namespace LightweightMatrixCSharp
 			return s.ToString();
 		}
 
-		public static Matrix Transpose(Matrix m)              // Matrix transpose, for any rectangular matrix
+		public static Matrix Transpose(Matrix m)
 		{
 			Matrix t = new Matrix(m.cols, m.rows);
 			for (int i = 0; i < m.rows; i++)
@@ -347,7 +345,7 @@ namespace LightweightMatrixCSharp
 			return t;
 		}
 
-		public static Matrix Power(Matrix m, int pow)           // Power matrix to exponent
+		public static Matrix Power(Matrix m, int pow)
 		{
 			if (pow == 0)
 				return IdentityMatrix(m.rows, m.cols);
@@ -375,8 +373,8 @@ namespace LightweightMatrixCSharp
 
 		private static void SafeAplusBintoC(Matrix A, int xa, int ya, Matrix B, int xb, int yb, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
-				for (int j = 0; j < size; j++)     // cols
+			for (int i = 0; i < size; i++)
+				for (int j = 0; j < size; j++)
 				{
 					C[i, j] = 0;
 					if (xa + j < A.cols && ya + i < A.rows)
@@ -388,8 +386,8 @@ namespace LightweightMatrixCSharp
 
 		private static void SafeAminusBintoC(Matrix A, int xa, int ya, Matrix B, int xb, int yb, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
-				for (int j = 0; j < size; j++)     // cols
+			for (int i = 0; i < size; i++)
+				for (int j = 0; j < size; j++)
 				{
 					C[i, j] = 0;
 					if (xa + j < A.cols && ya + i < A.rows)
@@ -401,8 +399,8 @@ namespace LightweightMatrixCSharp
 
 		private static void SafeACopytoC(Matrix A, int xa, int ya, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
-				for (int j = 0; j < size; j++)     // cols
+			for (int i = 0; i < size; i++)
+				for (int j = 0; j < size; j++)
 				{
 					C[i, j] = 0;
 					if (xa + j < A.cols && ya + i < A.rows)
@@ -412,27 +410,26 @@ namespace LightweightMatrixCSharp
 
 		private static void AplusBintoC(Matrix A, int xa, int ya, Matrix B, int xb, int yb, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
+			for (int i = 0; i < size; i++)
 				for (int j = 0; j < size; j++)
 					C[i, j] = A[ya + i, xa + j] + B[yb + i, xb + j];
 		}
 
 		private static void AminusBintoC(Matrix A, int xa, int ya, Matrix B, int xb, int yb, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
+			for (int i = 0; i < size; i++)
 				for (int j = 0; j < size; j++)
 					C[i, j] = A[ya + i, xa + j] - B[yb + i, xb + j];
 		}
 
 		private static void ACopytoC(Matrix A, int xa, int ya, Matrix C, int size)
 		{
-			for (int i = 0; i < size; i++)          // rows
+			for (int i = 0; i < size; i++)
 				for (int j = 0; j < size; j++)
 					C[i, j] = A[ya + i, xa + j];
 		}
 
-		// TODO assume matrix 2^N x 2^N and then directly call StrassenMultiplyRun(A,B,?,1,?)
-		private static Matrix StrassenMultiply(Matrix A, Matrix B)                // Smart matrix multiplication
+		private static Matrix StrassenMultiply(Matrix A, Matrix B)
 		{
 			if (A.cols != B.rows)
 				throw new MException("Wrong dimension of matrix!");
@@ -448,18 +445,10 @@ namespace LightweightMatrixCSharp
 			;
 			int h = size / 2;
 
-
 			Matrix[,] mField = new Matrix[n, 9];
 
-			/*
-             *  8x8, 8x8, 8x8, ...
-             *  4x4, 4x4, 4x4, ...
-             *  2x2, 2x2, 2x2, ...
-             *  . . .
-             */
-
 			int z;
-			for (int i = 0; i < n - 4; i++)          // rows
+			for (int i = 0; i < n - 4; i++)
 			{
 				z = (int)Math.Pow(2, n - i - 1);
 				for (int j = 0; j < 9; j++)
@@ -468,110 +457,102 @@ namespace LightweightMatrixCSharp
 
 			SafeAplusBintoC(A, 0, 0, A, h, h, mField[0, 0], h);
 			SafeAplusBintoC(B, 0, 0, B, h, h, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 1], 1, mField); // (A11 + A22) * (B11 + B22);
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 1], 1, mField);
 
 			SafeAplusBintoC(A, 0, h, A, h, h, mField[0, 0], h);
 			SafeACopytoC(B, 0, 0, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 2], 1, mField); // (A21 + A22) * B11;
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 2], 1, mField);
 
 			SafeACopytoC(A, 0, 0, mField[0, 0], h);
 			SafeAminusBintoC(B, h, 0, B, h, h, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 3], 1, mField); //A11 * (B12 - B22);
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 3], 1, mField);
 
 			SafeACopytoC(A, h, h, mField[0, 0], h);
 			SafeAminusBintoC(B, 0, h, B, 0, 0, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 4], 1, mField); //A22 * (B21 - B11);
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 4], 1, mField);
 
 			SafeAplusBintoC(A, 0, 0, A, h, 0, mField[0, 0], h);
 			SafeACopytoC(B, h, h, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 5], 1, mField); //(A11 + A12) * B22;
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 5], 1, mField);
 
 			SafeAminusBintoC(A, 0, h, A, 0, 0, mField[0, 0], h);
 			SafeAplusBintoC(B, 0, 0, B, h, 0, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 6], 1, mField); //(A21 - A11) * (B11 + B12);
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 6], 1, mField);
 
 			SafeAminusBintoC(A, h, 0, A, h, h, mField[0, 0], h);
 			SafeAplusBintoC(B, 0, h, B, h, h, mField[0, 1], h);
-			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 7], 1, mField); // (A12 - A22) * (B21 + B22);
+			StrassenMultiplyRun(mField[0, 0], mField[0, 1], mField[0, 1 + 7], 1, mField);
 
-			R = new Matrix(A.rows, B.cols);                  // result
+			R = new Matrix(A.rows, B.cols);
 
-			/// C11
-			for (int i = 0; i < Math.Min(h, R.rows); i++)          // rows
-				for (int j = 0; j < Math.Min(h, R.cols); j++)     // cols
+			for (int i = 0; i < Math.Min(h, R.rows); i++)
+				for (int j = 0; j < Math.Min(h, R.cols); j++)
 					R[i, j] = mField[0, 1 + 1][i, j] + mField[0, 1 + 4][i, j] - mField[0, 1 + 5][i, j] + mField[0, 1 + 7][i, j];
 
-			/// C12
-			for (int i = 0; i < Math.Min(h, R.rows); i++)          // rows
-				for (int j = h; j < Math.Min(2 * h, R.cols); j++)     // cols
+			for (int i = 0; i < Math.Min(h, R.rows); i++)
+				for (int j = h; j < Math.Min(2 * h, R.cols); j++)
 					R[i, j] = mField[0, 1 + 3][i, j - h] + mField[0, 1 + 5][i, j - h];
 
-			/// C21
-			for (int i = h; i < Math.Min(2 * h, R.rows); i++)          // rows
-				for (int j = 0; j < Math.Min(h, R.cols); j++)     // cols
+			for (int i = h; i < Math.Min(2 * h, R.rows); i++)
+				for (int j = 0; j < Math.Min(h, R.cols); j++)
 					R[i, j] = mField[0, 1 + 2][i - h, j] + mField[0, 1 + 4][i - h, j];
 
-			/// C22
-			for (int i = h; i < Math.Min(2 * h, R.rows); i++)          // rows
-				for (int j = h; j < Math.Min(2 * h, R.cols); j++)     // cols
+			for (int i = h; i < Math.Min(2 * h, R.rows); i++)
+				for (int j = h; j < Math.Min(2 * h, R.cols); j++)
 					R[i, j] = mField[0, 1 + 1][i - h, j - h] - mField[0, 1 + 2][i - h, j - h] + mField[0, 1 + 3][i - h, j - h] + mField[0, 1 + 6][i - h, j - h];
 
 			return R;
 		}
-		private static void StrassenMultiplyRun(Matrix A, Matrix B, Matrix C, int l, Matrix[,] f)    // A * B into C, level of recursion, matrix field
+		private static void StrassenMultiplyRun(Matrix A, Matrix B, Matrix C, int l, Matrix[,] f)
 		{
 			int size = A.rows;
 			int h = size / 2;
 
 			AplusBintoC(A, 0, 0, A, h, h, f[l, 0], h);
 			AplusBintoC(B, 0, 0, B, h, h, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 1], l + 1, f); // (A11 + A22) * (B11 + B22);
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 1], l + 1, f);
 
 			AplusBintoC(A, 0, h, A, h, h, f[l, 0], h);
 			ACopytoC(B, 0, 0, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 2], l + 1, f); // (A21 + A22) * B11;
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 2], l + 1, f);
 
 			ACopytoC(A, 0, 0, f[l, 0], h);
 			AminusBintoC(B, h, 0, B, h, h, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 3], l + 1, f); //A11 * (B12 - B22);
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 3], l + 1, f);
 
 			ACopytoC(A, h, h, f[l, 0], h);
 			AminusBintoC(B, 0, h, B, 0, 0, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 4], l + 1, f); //A22 * (B21 - B11);
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 4], l + 1, f);
 
 			AplusBintoC(A, 0, 0, A, h, 0, f[l, 0], h);
 			ACopytoC(B, h, h, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 5], l + 1, f); //(A11 + A12) * B22;
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 5], l + 1, f);
 
 			AminusBintoC(A, 0, h, A, 0, 0, f[l, 0], h);
 			AplusBintoC(B, 0, 0, B, h, 0, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 6], l + 1, f); //(A21 - A11) * (B11 + B12);
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 6], l + 1, f);
 
 			AminusBintoC(A, h, 0, A, h, h, f[l, 0], h);
 			AplusBintoC(B, 0, h, B, h, h, f[l, 1], h);
-			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 7], l + 1, f); // (A12 - A22) * (B21 + B22);
+			StrassenMultiplyRun(f[l, 0], f[l, 1], f[l, 1 + 7], l + 1, f);
 
-			/// C11
-			for (int i = 0; i < h; i++)          // rows
-				for (int j = 0; j < h; j++)     // cols
+			for (int i = 0; i < h; i++)
+				for (int j = 0; j < h; j++)
 					C[i, j] = f[l, 1 + 1][i, j] + f[l, 1 + 4][i, j] - f[l, 1 + 5][i, j] + f[l, 1 + 7][i, j];
 
-			/// C12
-			for (int i = 0; i < h; i++)          // rows
-				for (int j = h; j < size; j++)     // cols
+			for (int i = 0; i < h; i++)
+				for (int j = h; j < size; j++)
 					C[i, j] = f[l, 1 + 3][i, j - h] + f[l, 1 + 5][i, j - h];
 
-			/// C21
-			for (int i = h; i < size; i++)          // rows
-				for (int j = 0; j < h; j++)     // cols
+			for (int i = h; i < size; i++)
+				for (int j = 0; j < h; j++)
 					C[i, j] = f[l, 1 + 2][i - h, j] + f[l, 1 + 4][i - h, j];
 
-			/// C22
-			for (int i = h; i < size; i++)          // rows
-				for (int j = h; j < size; j++)     // cols
+			for (int i = h; i < size; i++)
+				for (int j = h; j < size; j++)
 					C[i, j] = f[l, 1 + 1][i - h, j - h] - f[l, 1 + 2][i - h, j - h] + f[l, 1 + 3][i - h, j - h] + f[l, 1 + 6][i - h, j - h];
 		}
-		private static Matrix StupidMultiply(Matrix m1, Matrix m2)                  // Stupid matrix multiplication
+		private static Matrix StupidMultiply(Matrix m1, Matrix m2)
 		{
 			if (m1.cols != m2.rows)
 				throw new MException("Wrong dimensions of matrix!");
@@ -584,23 +565,19 @@ namespace LightweightMatrixCSharp
 			return result;
 		}
 
-		private static Matrix Multiply(Matrix m1, Matrix m2)                         // Matrix multiplication
+		private static Matrix Multiply(Matrix m1, Matrix m2)
 		{
 			if (m1.cols != m2.rows)
 				throw new MException("Wrong dimension of matrix!");
 			int msize = Math.Max(Math.Max(m1.rows, m1.cols), Math.Max(m2.rows, m2.cols));
-			// stupid multiplication faster for small matrices
 			if (msize < 32)
 			{
 				return StupidMultiply(m1, m2);
 			}
-			// stupid multiplication faster for non square matrices
 			if (!m1.IsSquare() || !m2.IsSquare())
 			{
 				return StupidMultiply(m1, m2);
 			}
-			// Strassen multiplication is faster for large square matrix 2^N x 2^N
-			// NOTE because of previous checks msize == m1.cols == m1.rows == m2.cols == m2.cols
 			double exponent = Math.Log(msize) / Math.Log(2);
 			if (Math.Pow(2, exponent) == msize)
 			{
@@ -611,7 +588,7 @@ namespace LightweightMatrixCSharp
 				return StupidMultiply(m1, m2);
 			}
 		}
-		private static Matrix Multiply(double n, Matrix m)                          // Multiplication by constant n
+		private static Matrix Multiply(double n, Matrix m)
 		{
 			Matrix r = new Matrix(m.rows, m.cols);
 			for (int i = 0; i < m.rows; i++)
@@ -619,7 +596,7 @@ namespace LightweightMatrixCSharp
 					r[i, j] = m[i, j] * n;
 			return r;
 		}
-		private static Matrix Add(Matrix m1, Matrix m2)         // Sčítání matic
+		private static Matrix Add(Matrix m1, Matrix m2)
 		{
 			if (m1.rows != m2.rows || m1.cols != m2.cols)
 				throw new MException("Matrices must have the same dimensions!");
@@ -630,19 +607,14 @@ namespace LightweightMatrixCSharp
 			return r;
 		}
 
-		public static string NormalizeMatrixString(string matStr)   // From Andy - thank you! :)
+		public static string NormalizeMatrixString(string matStr)
 		{
-			// Remove any multiple spaces
 			while (matStr.IndexOf("  ") != -1)
 				matStr = matStr.Replace("  ", " ");
 
-			// Remove any spaces before or after newlines
 			matStr = matStr.Replace(" \r\n", "\r\n");
 			matStr = matStr.Replace("\r\n ", "\r\n");
 
-			// If the data ends in a newline, remove the trailing newline.
-			// Make it easier by first replacing \r\n’s with |’s then
-			// restore the |’s with \r\n’s
 			matStr = matStr.Replace("\r\n", "|");
 			while (matStr.LastIndexOf("|") == (matStr.Length - 1))
 				matStr = matStr.Substring(0, matStr.Length - 1);
@@ -650,8 +622,6 @@ namespace LightweightMatrixCSharp
 			matStr = matStr.Replace("|", "\r\n");
 			return matStr.Trim();
 		}
-
-		//   O P E R A T O R S
 
 		public static Matrix operator -(Matrix m)
 		{ return Matrix.Multiply(-1, m); }
@@ -668,8 +638,6 @@ namespace LightweightMatrixCSharp
 		public static Matrix operator *(double n, Matrix m)
 		{ return Matrix.Multiply(n, m); }
 	}
-
-	//  The class for exceptions
 
 	public class MException : Exception
 	{

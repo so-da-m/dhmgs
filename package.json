@@ -3,8 +3,7 @@
   "version": "0.7.1",
   "displayName": "MNNH DHMGS",
   "description": "Editor-only DHMGS import, SMPL-X avatar registration, Generic/Humanoid baking, and retarget preview with build-safe playback.",
-  "unity": "6000.5",
-  "unityRelease": "1f1",
+  "unity": "6000.0",
   "license": "See LICENSE.md file",
   "author": {
     "name": "MNNH"
@@ -16,8 +15,8 @@
   ],
   "dependencies": {
     "com.unity.inputsystem": "1.19.0",
-    "com.unity.ugui": "2.5.0",
-    "com.unity.render-pipelines.universal": "17.5.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.render-pipelines.universal": "17.0.4",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.director": "1.0.0",
     "com.unity.modules.video": "1.0.0",

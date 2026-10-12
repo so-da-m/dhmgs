@@ -68,11 +68,6 @@ namespace Mnnh.Dhmgs.Editor
 		}
 	}
 
-	/// <summary>
-	/// Validates the playback contract that the bundled official SMPL-X models share.
-	/// Candidate meshes may change, and extra transform branches are allowed, but the
-	/// canonical skeleton must remain an intact direct-parent subset.
-	/// </summary>
 	internal static class DhmgsSmplxAvatarValidator
 	{
 		internal const string NeutralReferenceGuid = "615fc734a2d080f4d954f707b0aaa53e";

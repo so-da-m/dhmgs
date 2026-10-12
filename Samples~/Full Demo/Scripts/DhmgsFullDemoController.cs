@@ -9,11 +9,6 @@ using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs.Samples
 {
-	/// <summary>
-	/// Compact Canvas surface matching the original DHMGS workflow: Attempt ID Fetch,
-	/// rig/clothes selection, opacity, speed, video opacity, and newest-first logging.
-	/// Downloading and baking are supplied by an Editor-only gateway.
-	/// </summary>
 	public sealed class DhmgsFullDemoController : MonoBehaviour
 	{
 		private const int MaxLogLines = 12;

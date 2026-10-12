@@ -3,11 +3,6 @@ using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// 런타임 카메라 + RenderTexture + RawImage 출력을 한 묶음으로 만들고 정리하는 헬퍼(MonoBehaviour 아님).
-	/// FixedAvatarCamera(orbit/pan)와 HumanoidPreview가 공유하던 렌더 보일러플레이트만 담는다.
-	/// 카메라 배치/프레이밍은 소유자가 CameraTransform으로 직접 한다.
-	/// </summary>
 	public sealed class DhmgsPreviewSurface
 	{
 		private Camera _camera;
@@ -19,7 +14,6 @@ namespace Mnnh.Dhmgs
 		public Transform CameraTransform => _camera != null ? _camera.transform : null;
 		public bool IsValid => _camera != null;
 
-		/// <summary>소유자의 활성 상태에 맞춰 생성된 카메라만 켜고 끈다.</summary>
 		public void SetEnabled(bool enabled)
 		{
 			if (_camera != null)
@@ -28,7 +22,6 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		/// <summary>카메라/RT/출력 생성. 이미 만들어졌으면 무시.</summary>
 		public void Create(string name, RawImage output, int width, int height, LayerMask cullingMask,
 			float fieldOfView, float nearClip, float farClip, Color background)
 		{
@@ -60,7 +53,6 @@ namespace Mnnh.Dhmgs
 			Clear();
 		}
 
-		/// <summary>Clears the owned RenderTexture without rendering a scene.</summary>
 		public void Clear()
 		{
 			if (_renderTexture == null)
@@ -74,7 +66,6 @@ namespace Mnnh.Dhmgs
 			RenderTexture.active = previous;
 		}
 
-		/// <summary>출력 해제 + 카메라/RT 파괴.</summary>
 		public void Destroy()
 		{
 			RawImage output = _output;

@@ -148,8 +148,6 @@ namespace Mnnh.Dhmgs.Editor
 					cancellationToken);
 				if (entries.TryGetValue(IdentityName, out ZipArchiveEntry identityEntry))
 				{
-					// The server emits identity.json as ancillary metadata. Motion conversion does
-					// not consume it, but reading it enforces the real byte limit and strict UTF-8.
 					ReadText(identityEntry, DhmgsArchiveLimits.MaxIdentityBytes, cancellationToken);
 				}
 				byte[] videoBytes = entries.TryGetValue(VideoName, out ZipArchiveEntry videoEntry)

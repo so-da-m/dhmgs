@@ -19,13 +19,6 @@ namespace Mnnh.Dhmgs.Editor
 		internal string Error { get; set; }
 	}
 
-	/// <summary>
-	/// 베이크된 DhmgsMotionAsset을 모델 위에서 구동해 AnimationClip으로 굽는다.
-	/// 카메라 정합 배치는 제외하고 DhmgsRigDriver.ApplyPose로 범용 관절 포즈만 기록한다.
-	/// AnimationUtility/HumanPoseHandler are Editor-only, so this authoring utility is Editor-only.
-	/// - Generic: writes quaternion curves only for local rotations driven by DhmgsRigDriver.ApplyPose.
-	/// - Humanoid: HumanPoseHandler로 muscle 추출(휴머노이드 리타게팅, jaw/eye 일부 소실).
-	/// </summary>
 	internal static class DhmgsAnimationClipBaker
 	{
 		internal static async Task<AnimationClip> BakeGenericAsync(
@@ -538,8 +531,6 @@ namespace Mnnh.Dhmgs.Editor
 
 		private static void ConfigureRootTransform(AnimationClip clip, bool inPlace)
 		{
-			// AnimationClipSettings에는 공개 setter가 없으므로 Unity가 직렬화하는 동일 필드를 설정한다.
-			// m_LoopBlend*는 Animation Importer의 "Bake Into Pose"에 해당한다.
 			SerializedObject serializedClip = new SerializedObject(clip);
 			SerializedProperty settings = serializedClip.FindProperty("m_AnimationClipSettings");
 			if (settings == null)
@@ -551,9 +542,6 @@ namespace Mnnh.Dhmgs.Editor
 			SetBool(settings, "m_LoopBlendPositionY", inPlace);
 			SetBool(settings, "m_LoopBlendPositionXZ", inPlace);
 			SetBool(settings, "m_KeepOriginalOrientation", false);
-			// 이 클립은 ModelImporter를 거치지 않는 native .anim이며, RootT.y에 이미 지면 정렬된
-			// Humanoid Body 높이가 기록되어 있다. Original Y를 보존하지 않으면 m_Level=0 기준으로
-			// 첫 Body 높이가 제거되어 재생 시 아바타가 지면 아래로 내려간다.
 			SetBool(settings, "m_KeepOriginalPositionY", true);
 			SetBool(settings, "m_KeepOriginalPositionXZ", false);
 			SetBool(settings, "m_HeightFromFeet", false);
@@ -572,9 +560,6 @@ namespace Mnnh.Dhmgs.Editor
 		private static readonly string[] MuscleSides = { "Left", "Right" };
 		private static readonly string[] MuscleFingers = { "Thumb", "Index", "Middle", "Ring", "Little" };
 
-		// 손가락 muscle은 AnimationClip 곡선 바인딩 이름이 점 표기다.
-		// HumanTrait.MuscleName "Left Thumb 1 Stretched" → 곡선명 "LeftHand.Thumb.1 Stretched".
-		// 몸통 muscle은 이름이 일치하므로 그대로 둔다(이미 점 표기인 경우에도 "Left "로 시작 안 해 무변).
 		private static string MuscleCurveProperty(string muscleName)
 		{
 			foreach (string side in MuscleSides)

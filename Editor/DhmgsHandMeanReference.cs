@@ -2,11 +2,6 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	/// <summary>
-	/// 회귀 가드용 참조 상수. 옛 검증된 손 평균(이미 Unity 좌표로 변환된 axis-angle).
-	/// 서버 manifest의 native hand_pose_offset을 DhmgsMotionDecoder.AxisAngleToUnity로 변환했을 때
-	/// 이 값과 일치해야 서버 값이 옛 trial-and-error 결과와 같다고 확인된다.
-	/// </summary>
 	public static class DhmgsHandMeanReference
 	{
 		public static readonly float[] LeftHandMean =
@@ -47,10 +42,6 @@ namespace Mnnh.Dhmgs.Editor
 			0.53555918f, 0.04596104f, -0.27735803f,
 		};
 
-		/// <summary>
-		/// 서버 native offset(45)을 Unity로 변환해 참조 상수와 비교, 최대 절대 오차를 돌려준다.
-		/// tolerance 이하면 "서버 값 == 옛 상수"로 본다.
-		/// </summary>
 		public static float MaxDiff(float[] nativeOffset, float[] reference)
 		{
 			float maxDiff = 0f;

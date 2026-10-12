@@ -56,10 +56,6 @@ namespace Mnnh.Dhmgs.Editor
 		internal IReadOnlyList<string> ReferencePaths { get; }
 	}
 
-	/// <summary>
-	/// Removes project-owned avatar wrapper registrations from the imported Full Demo.
-	/// Source FBXs and wrapper dependencies are never deleted.
-	/// </summary>
 	internal static class DhmgsSmplxAvatarRemoval
 	{
 		internal static IReadOnlyList<DhmgsSmplxAvatarRemovalEntry> FindRemovableRegistrations(
@@ -310,7 +306,6 @@ namespace Mnnh.Dhmgs.Editor
 				return result;
 			}
 
-			// This is the final commit. No fallible work is performed after the asset is trashed.
 			bool movedToTrash;
 			try
 			{
@@ -543,8 +538,6 @@ namespace Mnnh.Dhmgs.Editor
 			bool wasActive,
 			Exception failure)
 		{
-			// If the asset disappeared despite an exception, restoring the scene would create
-			// a broken reference. Report that uncertain commit instead of making it worse.
 			if (AssetDatabase.LoadMainAssetAtPath(entry.PrefabPath) == null
 				&& !File.Exists(DhmgsSmplxAvatarRegistrar.ToAbsolutePath(entry.PrefabPath)))
 			{
