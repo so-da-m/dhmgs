@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 
-using SMPLXPlugin;
-
 using UnityEngine;
 
 namespace Mnnh.Dhmgs
@@ -133,7 +131,7 @@ namespace Mnnh.Dhmgs
 
 		private static void CanonicalizeSkeleton(Transform root)
 		{
-			SMPLX smplx = root.GetComponentInChildren<SMPLX>(true);
+			DhmgsSmplx smplx = root.GetComponentInChildren<DhmgsSmplx>(true);
 			if (smplx == null || smplx.betas == null)
 			{
 				return;

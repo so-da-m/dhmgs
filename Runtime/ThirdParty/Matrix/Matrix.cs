@@ -3,7 +3,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace LightweightMatrixCSharp
+namespace Mnnh.Dhmgs.ThirdParty.MatrixMath
 {
 	public class Matrix
 	{

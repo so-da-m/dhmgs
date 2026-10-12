@@ -454,9 +454,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 3302492483604883914}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c60d9f735c9b97c4faa1c3d39e6a533f, type: 3}
+  m_Script: {fileID: 11500000, guid: be6495e7f45e426d8cc58504f10a5f82, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Mnnh.Dhmgs.Runtime::SMPLXPlugin.SMPLX
+  m_EditorClassIdentifier: Mnnh.Dhmgs.Runtime::Mnnh.Dhmgs.DhmgsSmplx
   modelType: 0
   betas:
   - 0

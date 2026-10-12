@@ -22,12 +22,12 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
-using LightweightMatrixCSharp;
+using Mnnh.Dhmgs.ThirdParty.MatrixMath;
 
-namespace SMPLXPlugin
+namespace Mnnh.Dhmgs
 {
 
-	public class SMPLX : MonoBehaviour
+	public class DhmgsSmplx : MonoBehaviour
 	{
 		public const int NUM_BETAS = 10;
 		public const int NUM_EXPRESSIONS = 10;
@@ -107,7 +107,7 @@ namespace SMPLXPlugin
 				_jointRotations = new Quaternion[NUM_JOINTS];
 			}
 
-			if (SMPLX.JointMatrices == null)
+			if (DhmgsSmplx.JointMatrices == null)
 				InitJointRegressor();
 
 			if (_smr != null)
@@ -166,7 +166,7 @@ namespace SMPLXPlugin
 
 		private bool InitJointRegressor()
 		{
-			SMPLX.JointMatrices = new Dictionary<string, Matrix[]>();
+			DhmgsSmplx.JointMatrices = new Dictionary<string, Matrix[]>();
 
 			string[] genders = new string[] { "female", "neutral", "male" };
 			foreach (string gender in genders)
@@ -183,11 +183,11 @@ namespace SMPLXPlugin
 					templateJ[i] = new Matrix(NUM_JOINTS, 1);
 				}
 
-				string name = "smplx_betas_to_joints_" + gender;
-				TextAsset ta = Resources.Load<TextAsset>(name);
+				string resourcePath = "Mnnh.Dhmgs/Smplx/smplx_betas_to_joints_" + gender;
+				TextAsset ta = Resources.Load<TextAsset>(resourcePath);
 				if (ta == null)
 				{
-					Debug.LogError("[SMPL-X] Cannot find betas-to-joint regressor: SMPLX/Resources/" + name);
+					Debug.LogError("[SMPL-X] Cannot find betas-to-joint regressor: " + resourcePath);
 					return false;
 				}
 				Mnnh.Dhmgs.ThirdParty.SimpleJson.JSONNode node =
@@ -211,8 +211,8 @@ namespace SMPLXPlugin
 					(templateJ[2])[i, 0] = z;
 				}
 
-				SMPLX.JointMatrices.Add(name_betas, betasToJoints);
-				SMPLX.JointMatrices.Add(name_template, templateJ);
+				DhmgsSmplx.JointMatrices.Add(name_betas, betasToJoints);
+				DhmgsSmplx.JointMatrices.Add(name_template, templateJ);
 			}
 			return true;
 		}
@@ -501,11 +501,11 @@ namespace SMPLXPlugin
 				}
 
 				string gender = "";
-				if (modelType == SMPLX.ModelType.Female)
+				if (modelType == DhmgsSmplx.ModelType.Female)
 					gender = "female";
-				else if (modelType == SMPLX.ModelType.Neutral)
+				else if (modelType == DhmgsSmplx.ModelType.Neutral)
 					gender = "neutral";
-				else if (modelType == SMPLX.ModelType.Male)
+				else if (modelType == DhmgsSmplx.ModelType.Male)
 					gender = "male";
 				else
 				{
@@ -513,8 +513,8 @@ namespace SMPLXPlugin
 					return false;
 				}
 
-				Matrix[] betasToJoints = SMPLX.JointMatrices["betasToJoints_" + gender];
-				Matrix[] templateJ = SMPLX.JointMatrices["templateJ_" + gender];
+				Matrix[] betasToJoints = DhmgsSmplx.JointMatrices["betasToJoints_" + gender];
+				Matrix[] templateJ = DhmgsSmplx.JointMatrices["templateJ_" + gender];
 				;
 
 				Matrix newJointsX = betasToJoints[0] * betaMatrix + templateJ[0];
@@ -567,11 +567,11 @@ namespace SMPLXPlugin
 	}
 
 #if UNITY_EDITOR
-	[CustomEditor(typeof(SMPLX))]
-	public class SMPLX_Editor : Editor
+	[CustomEditor(typeof(DhmgsSmplx))]
+	public class DhmgsSmplxEditor : UnityEditor.Editor
 	{
 
-		private SMPLX _target;
+		private DhmgsSmplx _target;
 		private SerializedProperty _modelTypeProperty;
 		private bool _showShape = true;
 		private bool _showExpression = true;
@@ -581,7 +581,7 @@ namespace SMPLXPlugin
 
 		void Awake()
 		{
-			_target = (SMPLX)target;
+			_target = (DhmgsSmplx)target;
 			_target.Awake();
 
 			int shapes, expressions, poseCorrectives;
@@ -653,7 +653,7 @@ namespace SMPLXPlugin
 						{
 							using (new EditorGUILayout.VerticalScope("Box"))
 							{
-								for (int i = 0; i < SMPLX.NUM_BETAS; i++)
+								for (int i = 0; i < DhmgsSmplx.NUM_BETAS; i++)
 								{
 									EditorGUILayout.BeginHorizontal();
 									EditorGUILayout.LabelField("Beta " + i, GUILayout.Width(50));
@@ -680,7 +680,7 @@ namespace SMPLXPlugin
 								}
 								if (GUILayout.Button("Random"))
 								{
-									for (int i = 0; i < SMPLX.NUM_BETAS; i++)
+									for (int i = 0; i < DhmgsSmplx.NUM_BETAS; i++)
 									{
 										_target.betas[i] = Random.Range(-2.0f, 2.0f);
 									}
@@ -691,7 +691,7 @@ namespace SMPLXPlugin
 								}
 								if (GUILayout.Button("Reset"))
 								{
-									for (int i = 0; i < SMPLX.NUM_BETAS; i++)
+									for (int i = 0; i < DhmgsSmplx.NUM_BETAS; i++)
 									{
 										_target.betas[i] = 0.0f;
 									}
@@ -722,7 +722,7 @@ namespace SMPLXPlugin
 						{
 							using (new EditorGUILayout.VerticalScope("Box"))
 							{
-								for (int i = 0; i < SMPLX.NUM_BETAS; i++)
+								for (int i = 0; i < DhmgsSmplx.NUM_BETAS; i++)
 								{
 									EditorGUILayout.BeginHorizontal();
 									EditorGUILayout.LabelField("Exp " + i, GUILayout.Width(50));
@@ -739,7 +739,7 @@ namespace SMPLXPlugin
 								}
 								if (GUILayout.Button("Random"))
 								{
-									for (int i = 0; i < SMPLX.NUM_EXPRESSIONS; i++)
+									for (int i = 0; i < DhmgsSmplx.NUM_EXPRESSIONS; i++)
 									{
 										_target.expressions[i] = Random.Range(-2.0f, 2.0f);
 									}
@@ -747,7 +747,7 @@ namespace SMPLXPlugin
 								}
 								if (GUILayout.Button("Reset"))
 								{
-									for (int i = 0; i < SMPLX.NUM_EXPRESSIONS; i++)
+									for (int i = 0; i < DhmgsSmplx.NUM_EXPRESSIONS; i++)
 									{
 										_target.expressions[i] = 0.0f;
 									}
@@ -775,11 +775,11 @@ namespace SMPLXPlugin
 						EditorGUILayout.LabelField("Body Pose", GUILayout.Width(100));
 						if (GUILayout.Button("T-Pose"))
 						{
-							_target.SetBodyPose(SMPLX.BodyPose.T);
+							_target.SetBodyPose(DhmgsSmplx.BodyPose.T);
 						}
 						if (GUILayout.Button("A-Pose"))
 						{
-							_target.SetBodyPose(SMPLX.BodyPose.A);
+							_target.SetBodyPose(DhmgsSmplx.BodyPose.A);
 						}
 						EditorGUILayout.EndHorizontal();
 
@@ -787,11 +787,11 @@ namespace SMPLXPlugin
 						EditorGUILayout.LabelField("Hand Pose", GUILayout.Width(100));
 						if (GUILayout.Button("    Flat    "))
 						{
-							_target.SetHandPose(SMPLX.HandPose.Flat);
+							_target.SetHandPose(DhmgsSmplx.HandPose.Flat);
 						}
 						if (GUILayout.Button("Relaxed"))
 						{
-							_target.SetHandPose(SMPLX.HandPose.Relaxed);
+							_target.SetHandPose(DhmgsSmplx.HandPose.Relaxed);
 						}
 						EditorGUILayout.EndHorizontal();
 					}
