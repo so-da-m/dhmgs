@@ -1,6 +1,6 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "displayName": "MNNH DHMGS",
   "description": "Editor-only DHMGS import, SMPL-X avatar registration, Generic/Humanoid baking, and retarget preview with build-safe playback.",
   "unity": "6000.0",

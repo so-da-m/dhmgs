@@ -9,7 +9,7 @@ namespace Mnnh.Dhmgs.Editor
 	[InitializeOnLoad]
 	internal static class DhmgsProjectValidator
 	{
-		internal const string FallbackPackageVersion = "0.7.1";
+		internal const string FallbackPackageVersion = "0.7.2";
 		private const string AutoConfigurationKeyPrefix = "Mnnh.Dhmgs.AutoProjectConfiguration";
 
 		static DhmgsProjectValidator()
