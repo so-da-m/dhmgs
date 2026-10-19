@@ -15,8 +15,6 @@ namespace Mnnh.Dhmgs.Editor
 	internal sealed class DhmgsAssetWriteOptions
 	{
 		public string OutputRoot { get; set; } = DhmgsAssetWriter.DefaultOutputRoot;
-		public GameObject GenericRig { get; set; }
-		public GameObject HumanoidRig { get; set; }
 		public bool BakeGenericClip { get; set; } = true;
 		public bool BakeHumanoidClips { get; set; } = true;
 		public CancellationToken CancellationToken { get; set; } = default;
@@ -201,14 +199,9 @@ namespace Mnnh.Dhmgs.Editor
 			{
 				if (options.BakeGenericClip)
 				{
-					if (options.GenericRig == null)
-					{
-						throw new InvalidOperationException("A SMPL-X bake source is required for Generic output.");
-					}
 					onProgress?.Invoke(DhmgsImportJobStage.BakingGeneric, 0f, "Baking Generic clip", true);
 					genericClip = await DhmgsAnimationClipBaker.BakeGenericAsync(
 						import.Motion,
-						options.GenericRig,
 						value => onProgress?.Invoke(
 							DhmgsImportJobStage.BakingGeneric,
 							value,
@@ -223,15 +216,10 @@ namespace Mnnh.Dhmgs.Editor
 
 				if (options.BakeHumanoidClips)
 				{
-					if (options.HumanoidRig == null)
-					{
-						throw new InvalidOperationException("A SMPL-X bake source is required for Humanoid output.");
-					}
 					onProgress?.Invoke(DhmgsImportJobStage.BakingHumanoid, 0f, "Baking Humanoid clips", true);
 					DhmgsHumanoidBakeArtifacts humanoid =
 						await DhmgsAnimationClipBaker.BakeHumanoidVariantsAsync(
 							import.Motion,
-							options.HumanoidRig,
 							value => onProgress?.Invoke(
 								DhmgsImportJobStage.BakingHumanoid,
 								value,

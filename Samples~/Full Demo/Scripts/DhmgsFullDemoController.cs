@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs.Samples
 {
@@ -12,25 +11,21 @@ namespace Mnnh.Dhmgs.Samples
 	{
 		private const int MaxLogLines = 12;
 
-		[SerializeField] private DhmgsMotionPlayer _player;
-		[SerializeField] private bool _loop = true;
 		[SerializeField] private string _defaultBaseUrl = "http://192.168.1.128:8090";
-		[SerializeField] private Camera _previewCamera;
-		[SerializeField] private DhmgsFixedAvatarCamera _humanoidPreviewCamera;
 		[SerializeField] private DhmgsFullDemoPlayback _playback;
-		[SerializeField] private DhmgsFullDemoViewSettings _viewSettings;
-
-		[Header("Fetch")]
-		[SerializeField] private InputField _attemptIdInput;
-		[SerializeField] private Button _fetchButton;
-		[SerializeField] private Slider _importProgress;
-		[SerializeField] private Text _serverLabel;
-		[SerializeField] private Text _operationStatusLabel;
-		[SerializeField] private Text _logLabel;
 
 		private readonly List<string> _logLines = new List<string>();
 		private CancellationTokenSource _importCancellation;
-		private DhmgsSampleImportContext _importContext;
+
+		public event Action Changed;
+
+		public string BaseUrl => _defaultBaseUrl;
+		public string Status { get; private set; } = string.Empty;
+		public string Log { get; private set; } = string.Empty;
+		public float Progress { get; private set; }
+		public bool IsImporting => _importCancellation != null;
+		public bool CanFetch => isActiveAndEnabled && !IsImporting &&
+			DhmgsFullDemoImportGateway.IsAvailable && _playback != null && _playback.CanLoad;
 
 		private void Awake()
 		{
@@ -43,53 +38,32 @@ namespace Mnnh.Dhmgs.Samples
 			{
 				_playback = GetComponent<DhmgsFullDemoPlayback>();
 			}
-			if (_viewSettings == null)
-			{
-				_viewSettings = GetComponent<DhmgsFullDemoViewSettings>();
-			}
-			if (_importContext == null)
-			{
-				_importContext = new DhmgsSampleImportContext(
-					this,
-					_player,
-					_previewCamera,
-					_humanoidPreviewCamera);
-			}
 		}
 
 		private void OnEnable()
 		{
 			EnsureInitialized();
-			_fetchButton?.onClick.AddListener(Fetch);
 			DhmgsFullDemoImportGateway.AvailabilityChanged += OnImportAvailabilityChanged;
-			_viewSettings?.SetImportContext(_importContext);
-			if (_serverLabel != null)
-			{
-				_serverLabel.text = $"Server  {_defaultBaseUrl}";
-			}
-			ConfigureEditorControls();
+			RefreshAvailability();
 		}
 
 		private void OnDisable()
 		{
-			_fetchButton?.onClick.RemoveListener(Fetch);
 			DhmgsFullDemoImportGateway.AvailabilityChanged -= OnImportAvailabilityChanged;
 			CancellationTokenSource pendingImport = _importCancellation;
 			_importCancellation = null;
 			pendingImport?.Cancel();
-			ReleasePlayback();
-			_viewSettings?.SetImportContext(null);
-			_viewSettings?.ResetMainCamera();
-			SetFetchInteractable(false);
+			Changed?.Invoke();
 		}
 
-		public async void Fetch()
+		public void CancelImport()
 		{
-			await FetchAndPlayAsync();
+			_importCancellation?.Cancel();
 		}
 
-		private async Task FetchAndPlayAsync()
+		public async Task FetchAsync(int attemptId)
 		{
+			EnsureInitialized();
 			if (_importCancellation != null)
 			{
 				AppendLog("A Fetch operation is already running.");
@@ -100,13 +74,13 @@ namespace Mnnh.Dhmgs.Samples
 				AppendLog("Fetch is available in the Unity Editor only.");
 				return;
 			}
-			if (_attemptIdInput == null || !int.TryParse(_attemptIdInput.text, out int attemptId) || attemptId < 0)
+			if (attemptId < 0)
 			{
 				AppendLog("[Error] Attempt ID must be a non-negative integer.");
 				return;
 			}
 
-			if (!isActiveAndEnabled || _playback == null || !_playback.isActiveAndEnabled || _player == null)
+			if (!isActiveAndEnabled || _playback == null || !_playback.CanLoad)
 			{
 				AppendLog("[Error] An active playback session and player are required.");
 				return;
@@ -124,32 +98,35 @@ namespace Mnnh.Dhmgs.Samples
 
 			try
 			{
-				_viewSettings?.ResetMainCamera();
-				_playback.BeginLoad();
-				SetFetchInteractable(false);
+				_playback.Clear();
 				SetProgress(0f, $"[{attemptId}] Downloading...");
 				AppendLog($"[{attemptId}] Fetch started.");
 				DhmgsSampleImportResult imported = await DhmgsFullDemoImportGateway.ImportAndSaveAsync(
-					_importContext,
 					_defaultBaseUrl,
 					attemptId,
 					onProgress,
 					cancellation.Token);
+				cancellation.Token.ThrowIfCancellationRequested();
 				if (!OwnsOperation(cancellation))
 				{
 					return;
 				}
 
-				if (!_playback.LoadAndPlay(imported.Motion, imported.Clock ?? new DhmgsRealtimeClock(_loop)))
+				SetProgress(0.85f, $"[{attemptId}] Preparing playback...");
+				bool loaded = await _playback.LoadAndPlayAsync(imported, cancellation.Token);
+				cancellation.Token.ThrowIfCancellationRequested();
+				if (!OwnsOperation(cancellation))
 				{
-					DhmgsFullDemoImportGateway.StopPreview(_importContext);
+					return;
+				}
+				if (!loaded)
+				{
 					SetProgress(0f, $"[{attemptId}] Imported but could not play.");
 					return;
 				}
-				_viewSettings?.OnMotionLoaded();
 				SetProgress(1f, string.Empty);
 				AppendSummary(imported.Summary);
-				AppendLog(imported.HasVideoPreview
+				AppendLog(_playback.HasVideoPreview
 					? $"[{attemptId}] Video preview synchronized."
 					: $"[{attemptId}] No preview video; realtime clock in use.");
 			}
@@ -157,7 +134,6 @@ namespace Mnnh.Dhmgs.Samples
 			{
 				if (OwnsOperation(cancellation, allowCancelled: true))
 				{
-					ReleasePlayback();
 					SetProgress(0f, $"[{attemptId}] Fetch cancelled.");
 					AppendLog($"[{attemptId}] Fetch cancelled.");
 				}
@@ -166,7 +142,6 @@ namespace Mnnh.Dhmgs.Samples
 			{
 				if (OwnsOperation(cancellation, allowCancelled: true))
 				{
-					ReleasePlayback();
 					Debug.LogException(exception, this);
 					AppendLog($"[Error] [{attemptId}] {exception.Message}");
 					SetProgress(0f, $"[{attemptId}] Failed.");
@@ -177,8 +152,7 @@ namespace Mnnh.Dhmgs.Samples
 				if (this != null && ReferenceEquals(_importCancellation, cancellation))
 				{
 					_importCancellation = null;
-					SetFetchInteractable(isActiveAndEnabled && DhmgsFullDemoImportGateway.IsAvailable);
-					_playback?.CancelLoad();
+					Changed?.Invoke();
 				}
 			}
 		}
@@ -192,57 +166,32 @@ namespace Mnnh.Dhmgs.Samples
 				(allowCancelled || !cancellation.IsCancellationRequested);
 		}
 
-		private void ReleasePlayback()
-		{
-			_playback?.Clear();
-			DhmgsFullDemoImportGateway.StopPreview(_importContext);
-		}
-
 		private void OnImportAvailabilityChanged()
 		{
-			_viewSettings?.SetImportContext(_importContext);
 			if (_importCancellation == null)
 			{
-				ConfigureEditorControls();
+				RefreshAvailability();
 			}
 		}
 
-		private void ConfigureEditorControls()
+		private void RefreshAvailability()
 		{
 			bool available = DhmgsFullDemoImportGateway.IsAvailable;
-			SetFetchInteractable(available);
 			SetProgress(0f, available
 				? string.Empty
 				: "Fetch, baking, and video preview are Editor-only.");
 		}
 
-		private void SetFetchInteractable(bool interactable)
-		{
-			if (_fetchButton != null)
-			{
-				_fetchButton.interactable = interactable;
-			}
-			if (_attemptIdInput != null)
-			{
-				_attemptIdInput.interactable = interactable;
-			}
-		}
-
 		private void OnImportProgress(DhmgsSampleImportProgress progress)
 		{
-			SetProgress(progress.Value, progress.Status);
+			SetProgress(progress.Value * 0.85f, progress.Status);
 		}
 
 		private void SetProgress(float value, string status)
 		{
-			if (_importProgress != null)
-			{
-				_importProgress.SetValueWithoutNotify(Mathf.Clamp01(value));
-			}
-			if (_operationStatusLabel != null)
-			{
-				_operationStatusLabel.text = status;
-			}
+			Progress = Mathf.Clamp01(value);
+			Status = status ?? string.Empty;
+			Changed?.Invoke();
 		}
 
 		private void AppendSummary(string summary)
@@ -271,10 +220,8 @@ namespace Mnnh.Dhmgs.Samples
 			{
 				_logLines.RemoveRange(MaxLogLines, _logLines.Count - MaxLogLines);
 			}
-			if (_logLabel != null)
-			{
-				_logLabel.text = string.Join("\n", _logLines);
-			}
+			Log = string.Join("\n", _logLines);
+			Changed?.Invoke();
 		}
 	}
 }

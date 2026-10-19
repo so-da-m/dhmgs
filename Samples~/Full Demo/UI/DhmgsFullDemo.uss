@@ -1,0 +1,457 @@
+.demo {
+    flex-grow: 1;
+    min-height: 0;
+    padding: 12px;
+    background-color: rgb(21, 25, 31);
+    color: rgb(222, 228, 237);
+    font-size: 13px;
+}
+
+.row {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.grow {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.panel {
+    background-color: rgb(31, 37, 46);
+    border-color: rgb(52, 62, 76);
+    border-width: 1px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.demo .unity-label {
+    margin: 0;
+    padding: 0;
+}
+
+.section-title {
+    -unity-font-style: bold;
+    color: rgb(238, 242, 249);
+}
+
+.demo .panel-title {
+    padding: 10px 12px;
+    flex-shrink: 0;
+}
+
+.demo .row > .unity-button {
+    height: 28px;
+    min-height: 28px;
+    min-width: 64px;
+    flex-shrink: 0;
+    margin: 0 6px 0 0;
+    padding: 0 10px;
+    background-color: rgb(47, 57, 71);
+    border-color: rgb(69, 82, 100);
+    border-width: 1px;
+    border-radius: 4px;
+    color: rgb(232, 238, 247);
+    font-size: 13px;
+}
+
+.demo .row > .unity-button:hover {
+    background-color: rgb(62, 76, 94);
+}
+
+.demo .row > .unity-button:active {
+    background-color: rgb(39, 48, 61);
+}
+
+.demo .row > .primary {
+    background-color: rgb(42, 100, 147);
+    border-color: rgb(63, 133, 189);
+}
+
+.demo .row > .primary:hover {
+    background-color: rgb(53, 120, 173);
+}
+
+.demo .unity-base-field {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.demo .unity-base-field__label {
+    min-width: 0;
+    margin: 0 8px 0 0;
+    padding: 0;
+    color: rgb(187, 199, 215);
+    -unity-text-align: middle-left;
+}
+
+.demo .unity-base-text-field__input,
+.demo .unity-popup-field__input {
+    height: 28px;
+    min-height: 28px;
+    min-width: 0;
+    margin: 0;
+    padding: 0 8px;
+    background-color: rgb(22, 28, 36);
+    border-color: rgb(66, 80, 98);
+    border-width: 1px;
+    border-radius: 4px;
+    color: rgb(232, 238, 247);
+}
+
+.demo .unity-base-text-field__input:focus,
+.demo .unity-popup-field__input:focus {
+    border-color: rgb(80, 163, 221);
+}
+
+.demo .unity-base-text-field__input .unity-text-element,
+.demo .unity-popup-field__text {
+    color: rgb(232, 238, 247);
+    -unity-text-align: middle-left;
+}
+
+.demo .unity-popup-field__arrow {
+    -unity-background-image-tint-color: rgb(195, 209, 228);
+}
+
+.demo .unity-base-slider--horizontal {
+    min-height: 28px;
+}
+
+.demo .unity-base-slider--horizontal > .unity-base-slider__input {
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+}
+
+.demo .unity-base-slider--horizontal .unity-base-slider__text-field {
+    width: 52px;
+    min-width: 52px;
+    height: 28px;
+    min-height: 28px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.demo .unity-base-slider--horizontal .unity-base-slider__tracker {
+    top: 50%;
+    height: 4px;
+    margin-top: -2px;
+    background-color: rgb(73, 88, 107);
+    border-width: 0;
+    border-radius: 2px;
+}
+
+.demo .unity-base-slider--horizontal .unity-base-slider__dragger {
+    top: 50%;
+    width: 10px;
+    height: 18px;
+    margin-top: -9px;
+    background-color: rgb(109, 191, 244);
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.demo .unity-toggle {
+    height: 24px;
+    margin-right: 16px;
+}
+
+.demo .unity-toggle__input {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    flex-basis: auto;
+    flex-grow: 0;
+    align-self: center;
+}
+
+.demo .unity-toggle__checkmark {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    background-color: rgb(22, 28, 36);
+    border-color: rgb(100, 121, 148);
+    border-width: 1px;
+    border-radius: 3px;
+    -unity-background-image-tint-color: rgb(238, 246, 255);
+}
+
+.demo .unity-toggle:checked .unity-toggle__checkmark {
+    background-color: rgb(42, 100, 147);
+}
+
+.demo .row > .unity-button:disabled,
+.demo .row > .unity-base-field:disabled,
+.demo .setting-field:disabled {
+    opacity: 0.5;
+}
+
+.import-panel {
+    flex-shrink: 0;
+    padding: 10px 12px;
+}
+
+.import-toolbar {
+    margin-bottom: 8px;
+}
+
+.demo .attempt {
+    width: 196px;
+    margin-right: 8px;
+}
+
+.attempt > .unity-base-field__label {
+    width: 76px;
+}
+
+.demo .server {
+    margin-left: 8px;
+    color: rgb(154, 171, 193);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.demo .unity-progress-bar {
+    height: 16px;
+    min-height: 16px;
+    margin: 0;
+}
+
+.demo .unity-progress-bar__background {
+    background-color: rgb(22, 28, 36);
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.demo .unity-progress-bar__progress {
+    background-color: rgb(42, 100, 147);
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.demo .unity-progress-bar__title {
+    color: rgb(232, 238, 247);
+    font-size: 11px;
+}
+
+.demo .status {
+    min-height: 18px;
+    color: rgb(175, 192, 213);
+    white-space: normal;
+}
+
+#operation-status {
+    margin-top: 4px;
+}
+
+.workspace {
+    flex-direction: row;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-height: 0;
+    margin: 10px 0;
+}
+
+.previews {
+    flex-direction: row;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 0;
+    min-height: 0;
+    margin-right: 10px;
+}
+
+.preview-column {
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 200px;
+    min-height: 0;
+    margin-right: 10px;
+}
+
+.last-preview {
+    margin-right: 0;
+}
+
+.preview-header {
+    height: 68px;
+    min-height: 68px;
+    flex-shrink: 0;
+    padding: 8px 10px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(52, 62, 76);
+}
+
+.demo .preview-header .unity-button {
+    min-width: 96px;
+    margin-right: 0;
+}
+
+.preview-options {
+    margin-top: 4px;
+}
+
+.viewport {
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 0;
+    background-color: rgb(9, 12, 17);
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 25%;
+    min-width: 220px;
+    max-width: 280px;
+    min-height: 0;
+    flex-shrink: 0;
+}
+
+.settings-panel {
+    flex-shrink: 1;
+    min-height: 0;
+    padding-bottom: 4px;
+}
+
+.settings-scroll {
+    min-height: 0;
+    flex-shrink: 1;
+    padding: 0 12px;
+}
+
+.demo .setting-field {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 10px;
+}
+
+.demo .setting-field > .unity-base-field__label {
+    height: 18px;
+    min-height: 18px;
+    margin: 0 0 4px 0;
+}
+
+.demo .setting-field > .unity-base-field__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+}
+
+.log-panel {
+    flex-grow: 1;
+    flex-basis: 0;
+    min-height: 90px;
+    margin-top: 10px;
+}
+
+.log-scroll {
+    flex-grow: 1;
+    min-height: 0;
+    padding: 0 12px 10px 12px;
+}
+
+.demo .log {
+    white-space: normal;
+    color: rgb(161, 179, 202);
+    font-size: 12px;
+}
+
+.demo .unity-scroller--vertical,
+.demo .unity-base-slider--vertical {
+    width: 12px;
+    min-width: 12px;
+}
+
+.demo .unity-scroller__low-button,
+.demo .unity-scroller__high-button {
+    display: none;
+}
+
+.demo .unity-base-slider--vertical .unity-base-slider__tracker {
+    left: 50%;
+    right: auto;
+    width: 8px;
+    margin-left: -4px;
+    background-color: rgb(22, 28, 36);
+    border-width: 0;
+    border-radius: 4px;
+}
+
+.demo .unity-base-slider--vertical .unity-base-slider__dragger {
+    left: 50%;
+    width: 8px;
+    min-width: 8px;
+    margin-left: -4px;
+    background-color: rgb(80, 99, 123);
+    border-width: 0;
+    border-radius: 4px;
+}
+
+.demo--narrow .workspace {
+    flex-direction: column;
+}
+
+.demo--narrow .previews {
+    margin-right: 0;
+    margin-bottom: 10px;
+}
+
+.demo--narrow .sidebar {
+    flex-direction: row;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: 240px;
+    flex-shrink: 1;
+}
+
+.demo--narrow .settings-panel {
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 0;
+    margin-right: 10px;
+}
+
+.demo--narrow .log-panel {
+    min-width: 0;
+    margin-top: 0;
+}
+
+.playback-panel {
+    flex-shrink: 0;
+    padding: 10px 12px;
+}
+
+.transport {
+    margin-bottom: 6px;
+}
+
+.demo .speed {
+    width: 116px;
+    margin-left: 10px;
+    margin-right: 16px;
+}
+
+.speed > .unity-base-field__label {
+    width: 42px;
+}
+
+#playback-status {
+    -unity-text-align: middle-right;
+}
+
+.timeline > .unity-base-slider > .unity-base-field__label {
+    width: 48px;
+}
+
+.frame-value {
+    width: 90px;
+    flex-shrink: 0;
+    -unity-text-align: middle-right;
+}

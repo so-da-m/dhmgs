@@ -19,6 +19,7 @@
     "com.unity.render-pipelines.universal": "17.0.4",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.director": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.unitywebrequest": "1.0.0"
   },

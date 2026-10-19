@@ -1,30 +1,73 @@
+using System;
+
 using UnityEngine;
 using UnityEngine.Video;
 
 namespace Mnnh.Dhmgs
 {
-	internal sealed class DhmgsVideoClock : IDhmgsSeekablePlaybackClock, System.IDisposable
+	internal sealed class DhmgsVideoClock : IDhmgsSeekablePlaybackClock
 	{
+		private const double WaitTimeoutSeconds = 10d;
+		private const long MaximumFrameDrift = 2;
+
 		private readonly VideoPlayer _player;
+		private readonly bool _loop;
+		private readonly long _firstVideoFrame;
+		private readonly DhmgsRealtimeClock _timeline = new DhmgsRealtimeClock(loop: false);
+		private readonly bool _previousFrameReadyEvents;
+		private readonly bool _previousLooping;
+		private readonly VideoTimeReference _previousTimeReference;
+		private readonly VideoTimeUpdateMode _previousTimeUpdateMode;
+		private readonly float _previousPlaybackSpeed;
+		private readonly bool _previousSkipOnDrop;
 		private int _frameCount = 1;
-		private int _requestedFrame;
-		private int _inFlightFrame;
-		private bool _paused;
+		private float _fps = 30f;
+		private double _videoFps;
+		private long _lastVideoFrame;
+		private long _lastSeekFrame;
+		private double _publishedTime;
+		private double _requestedTime;
+		private long _inFlightFrame;
+		private long _readyFrame = -1;
+		private long _resolvedFrame = -1;
+		private double _waitStartedAt;
+		private int _sampledFrame = -1;
+		private float _speed = 1f;
+		private bool _begun;
+		private bool _paused = true;
+		private bool _waiting;
 		private bool _seeking;
 		private bool _seekCompleted;
-		private bool _frameReady;
-		private bool _resumeAfterSeek;
-		private bool _previousFrameReadyEvents;
 		private bool _disposed;
-		private double _seekStartedAt;
+		private string _error;
 
 		public bool IsPaused => _paused;
-		public bool IsSeeking => _seeking && !_disposed && _player != null;
-		public bool CanSeek => !_disposed && _player != null && _player.isPrepared && _player.canSetTime;
+		public bool IsSeeking => _waiting && _seeking && !_disposed;
+		public bool IsWaiting => _waiting && !_disposed;
+		public string Error => _error;
+		public bool CanSeek => _begun && !_disposed && string.IsNullOrEmpty(_error) &&
+			_player != null && _player.isPrepared && _player.canSetTime;
+		public int CurrentFrame => Math.Min(_frameCount - 1, (int)(CurrentTime * _fps + 1e-7d));
+		public double CurrentTime => _publishedTime;
 
-		public DhmgsVideoClock(VideoPlayer player)
+		public DhmgsVideoClock(VideoPlayer player, bool loop = true, long firstFrame = -1)
 		{
 			_player = player;
+			_loop = loop;
+			_firstVideoFrame = Math.Max(0, firstFrame);
+			if (_player == null)
+			{
+				return;
+			}
+			_previousFrameReadyEvents = _player.sendFrameReadyEvents;
+			_previousLooping = _player.isLooping;
+			_previousTimeReference = _player.timeReference;
+			_previousTimeUpdateMode = _player.timeUpdateMode;
+			_previousPlaybackSpeed = _player.playbackSpeed;
+			_previousSkipOnDrop = _player.skipOnDrop;
+			_player.seekCompleted += OnSeekCompleted;
+			_player.frameReady += OnFrameReady;
+			_player.errorReceived += OnVideoError;
 		}
 
 		public void Begin(int frameCount, float fps)
@@ -33,38 +76,124 @@ namespace Mnnh.Dhmgs
 			{
 				return;
 			}
-			CancelSeek();
+			_begun = true;
+			_paused = false;
+			_waiting = false;
+			_seeking = false;
+			_resolvedFrame = -1;
+			_error = null;
+			_publishedTime = 0d;
+			_sampledFrame = -1;
 			_frameCount = Mathf.Max(1, frameCount);
-			_paused = _player != null && _player.isPaused;
+			_fps = fps > 0f && !float.IsInfinity(fps) ? fps : 30f;
+			_timeline.Begin(_frameCount, _fps);
+			_timeline.SetPaused(true);
+			_timeline.SetSpeed(_speed);
+			if (_player == null || !_player.isPrepared || !_player.canSetTime)
+			{
+				Fail("The preview video is not prepared or cannot seek.");
+				return;
+			}
+
+			_videoFps = _player.frameRate;
+			if (!IsFinite(_videoFps) || _videoFps <= 0d ||
+				_player.frameCount == 0 || _player.frameCount > (ulong)long.MaxValue)
+			{
+				Fail("The preview video has invalid frame rate or frame count metadata.");
+				return;
+			}
+			_lastVideoFrame = (long)_player.frameCount - 1;
+			_lastSeekFrame = _lastVideoFrame;
+			double videoDuration = _player.frameCount / _videoFps;
+			if (videoDuration + 1d / _videoFps + 1e-6d < _timeline.Duration)
+			{
+				Fail($"The preview video is shorter than the motion ({videoDuration:F3}s versus {_timeline.Duration:F3}s).");
+				return;
+			}
+			_lastVideoFrame = Math.Min(_lastVideoFrame,
+				(long)Math.Max(0d, Math.Ceiling(_timeline.Duration * _videoFps - 1e-7d) - 1d));
+
+			try
+			{
+				_player.Pause();
+				if (_player.texture != null && _player.frame == _firstVideoFrame)
+				{
+					_resolvedFrame = _firstVideoFrame;
+				}
+				_player.isLooping = false;
+				_player.sendFrameReadyEvents = true;
+				_player.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
+				_player.timeReference = VideoTimeReference.Freerun;
+				ApplyVideoSpeed();
+				if (string.IsNullOrEmpty(_error))
+				{
+					RequestSeek(0d, true);
+				}
+			}
+			catch (Exception exception)
+			{
+				Fail($"Could not start synchronized video playback: {exception.Message}");
+			}
 		}
 
 		public void SetSpeed(float speed)
 		{
-			if (!_disposed && _player != null && _player.canSetPlaybackSpeed)
+			if (_disposed || !string.IsNullOrEmpty(_error))
 			{
-				_player.playbackSpeed = float.IsNaN(speed) || float.IsInfinity(speed) ? 1f : Mathf.Max(0.01f, speed);
+				return;
+			}
+			Tick();
+			if (!string.IsNullOrEmpty(_error))
+			{
+				return;
+			}
+			_speed = float.IsNaN(speed) || float.IsInfinity(speed) ? 1f : Mathf.Max(0.01f, speed);
+			_timeline.SetSpeed(_speed);
+			if (_begun && !_waiting)
+			{
+				try
+				{
+					ApplyVideoSpeed();
+				}
+				catch (Exception exception)
+				{
+					Fail($"Could not change video playback speed: {exception.Message}");
+				}
 			}
 		}
 
 		public void SetPaused(bool paused)
 		{
-			if (_disposed || _player == null)
+			if (_disposed || !string.IsNullOrEmpty(_error))
+			{
+				return;
+			}
+			Tick();
+			if (!string.IsNullOrEmpty(_error))
 			{
 				return;
 			}
 			_paused = paused;
-			if (_seeking)
+			if (!_begun || _waiting)
 			{
-				_resumeAfterSeek = !paused;
 				return;
 			}
-			if (paused)
+			try
 			{
-				_player.Pause();
+				_timeline.SeekTime(_publishedTime);
+				_timeline.SetPaused(paused);
+				if (paused)
+				{
+					PauseAtPublishedTime();
+				}
+				else if (VideoFrameAt(_publishedTime) < _firstVideoFrame + _lastVideoFrame)
+				{
+					_player.Play();
+				}
 			}
-			else
+			catch (Exception exception)
 			{
-				_player.Play();
+				Fail($"Could not change video playback state: {exception.Message}");
 			}
 		}
 
@@ -74,151 +203,302 @@ namespace Mnnh.Dhmgs
 			{
 				return;
 			}
-			int maximumFrame = _frameCount - 1;
-			if (_player.frameCount > 0 && _player.frameCount <= (ulong)maximumFrame)
+			if (!_waiting)
 			{
-				maximumFrame = (int)_player.frameCount - 1;
+				Tick();
 			}
-			_requestedFrame = Mathf.Clamp(frame, 0, maximumFrame);
-			if (_seeking || _player.frame == _requestedFrame)
+			if (!CanSeek)
 			{
 				return;
 			}
+			try
+			{
+				RequestSeek(Mathf.Clamp(frame, 0, _frameCount - 1) / (double)_fps, true);
+			}
+			catch (Exception exception)
+			{
+				Fail($"Could not seek the preview video: {exception.Message}");
+			}
+		}
 
-			_resumeAfterSeek = !_paused && _player.isPlaying;
+		public void Tick()
+		{
+			if (_disposed || !_begun || !string.IsNullOrEmpty(_error) || _sampledFrame == Time.frameCount)
+			{
+				return;
+			}
+			_sampledFrame = Time.frameCount;
+			try
+			{
+				if (_player == null || !_player.isPrepared)
+				{
+					Fail("The preview video became unavailable during playback.");
+					return;
+				}
+				if (_waiting)
+				{
+					CompleteSeekIfReady();
+					if (_waiting && Time.realtimeSinceStartupAsDouble - _waitStartedAt >= WaitTimeoutSeconds)
+					{
+						Fail($"Video synchronization timed out (requested frame {_inFlightFrame}, " +
+							$"presented frame {_player.frame}, ready frame {_readyFrame}, seek completed {_seekCompleted}).");
+					}
+					return;
+				}
+				if (_paused)
+				{
+					return;
+				}
+
+				_timeline.Tick();
+				double time = _timeline.CurrentTime;
+				long expectedFrame = VideoFrameAt(time);
+				long presentedFrame = _player.frame;
+				if (_player.texture == null || presentedFrame < 0 ||
+					Math.Abs(presentedFrame - expectedFrame) > MaximumFrameDrift)
+				{
+					RequestSeek(time, false);
+					return;
+				}
+
+				_publishedTime = time;
+				if (time >= _timeline.Duration)
+				{
+					if (_loop)
+					{
+						RequestSeek(0d, false);
+					}
+					else
+					{
+						_paused = true;
+						PauseAtPublishedTime();
+					}
+				}
+			}
+			catch (Exception exception)
+			{
+				Fail($"Video synchronization failed: {exception.Message}");
+			}
+		}
+
+		private void PauseAtPublishedTime()
+		{
+			_timeline.SetPaused(true);
 			_player.Pause();
-			_seeking = true;
-			_previousFrameReadyEvents = _player.sendFrameReadyEvents;
-			_player.seekCompleted += OnSeekCompleted;
-			_player.frameReady += OnFrameReady;
-			_player.errorReceived += OnSeekError;
-			_player.sendFrameReadyEvents = true;
+			if (!HasResolvedFrame(VideoFrameAt(_publishedTime)))
+			{
+				RequestSeek(_publishedTime, false);
+			}
+		}
+
+		private void RequestSeek(double time, bool seeking)
+		{
+			_requestedTime = Math.Max(0d, Math.Min(time, _timeline.Duration));
+			_seeking |= seeking;
+			if (_waiting)
+			{
+				return;
+			}
+			_waiting = true;
+			_timeline.SetPaused(true);
+			_timeline.SeekTime(_publishedTime);
+			_player.Pause();
 			StartLatestSeek();
 		}
 
-		// VideoPlayer.frame describes the frame actually available in its texture.
-		// Never publish the requested slider frame before the decoder presents it.
-		public int CurrentFrame => _disposed || _player == null
-			? 0
-			: (int)System.Math.Max(0L, System.Math.Min(_player.frame, _frameCount - 1L));
-
 		private void StartLatestSeek()
 		{
-			_inFlightFrame = _requestedFrame;
+			_waitStartedAt = Time.realtimeSinceStartupAsDouble;
+			_inFlightFrame = VideoFrameAt(_requestedTime);
 			_seekCompleted = false;
-			_frameReady = false;
-			_seekStartedAt = Time.realtimeSinceStartupAsDouble;
-			try
+			_readyFrame = -1;
+			if (HasResolvedFrame(_inFlightFrame))
 			{
-				_player.frame = _inFlightFrame;
+				_seekCompleted = true;
+				_readyFrame = _resolvedFrame;
+				return;
 			}
-			catch
+			if (_player.canSetPlaybackSpeed)
 			{
-				CancelSeek();
-				_paused = true;
-				throw;
+				_player.playbackSpeed = 1f;
+			}
+			if (_player.canSetSkipOnDrop)
+			{
+				_player.skipOnDrop = false;
+			}
+			long seekFrame = Math.Min(_inFlightFrame, _lastSeekFrame);
+			if (_player.frame == seekFrame)
+			{
+				_seekCompleted = true;
+				if (seekFrame == _inFlightFrame && _player.texture != null)
+				{
+					_readyFrame = seekFrame;
+				}
+				else
+				{
+					_player.Play();
+				}
+			}
+			else
+			{
+				_player.frame = seekFrame;
 			}
 		}
 
 		private void OnSeekCompleted(VideoPlayer source)
 		{
-			if (!_seeking || source != _player)
+			if (_waiting && !_disposed && source == _player)
 			{
-				return;
+				_seekCompleted = true;
+				if (_readyFrame >= 0 && _readyFrame < _inFlightFrame)
+				{
+					source.Play();
+				}
 			}
-			_seekCompleted = true;
-			CompleteSeekIfReady();
 		}
 
 		private void OnFrameReady(VideoPlayer source, long frame)
 		{
-			if (!_seeking || source != _player || frame != _inFlightFrame)
+			if (_disposed || source != _player || frame < 0)
 			{
 				return;
 			}
-			_frameReady = true;
-			CompleteSeekIfReady();
+			if (!_waiting)
+			{
+				_resolvedFrame = frame;
+				return;
+			}
+			_readyFrame = frame;
+			if (frame == _inFlightFrame)
+			{
+				source.Pause();
+			}
+			else if (_seekCompleted && frame < _inFlightFrame)
+			{
+				source.Play();
+			}
 		}
 
 		private void CompleteSeekIfReady()
 		{
-			// Some decoders expose the presented frame before emitting frameReady.
-			// The frame property refers to the texture's available frame, not our request.
-			if (_seekCompleted && _player != null && _player.texture != null && _player.frame == _inFlightFrame)
-			{
-				_frameReady = true;
-			}
-			if (!_seekCompleted || !_frameReady)
+			if (!_seekCompleted || _readyFrame != _inFlightFrame ||
+				_player.texture == null || _player.frame != _readyFrame)
 			{
 				return;
 			}
-			if (_requestedFrame != _inFlightFrame)
+			_resolvedFrame = _readyFrame;
+			if (VideoFrameAt(_requestedTime) != _inFlightFrame)
 			{
 				StartLatestSeek();
 				return;
 			}
 
-			bool resume = _resumeAfterSeek && !_paused;
-			CancelSeek();
-			if (resume && _player != null && _player.isPrepared)
+			_publishedTime = _requestedTime;
+			_waiting = false;
+			_seeking = false;
+			_timeline.SeekTime(_publishedTime);
+			_timeline.SetPaused(_paused);
+			if (_player.canSetSkipOnDrop)
+			{
+				_player.skipOnDrop = _previousSkipOnDrop;
+			}
+			ApplyVideoSpeed();
+			if (!_paused && VideoFrameAt(_publishedTime) < _firstVideoFrame + _lastVideoFrame)
 			{
 				_player.Play();
 			}
 		}
 
-		private void OnSeekError(VideoPlayer source, string message)
+		private bool HasResolvedFrame(long targetFrame)
 		{
-			if (!_seeking || source != _player)
-			{
-				return;
-			}
-			CancelSeek();
-			_paused = true;
-			Debug.LogError($"[DHMGS] Video seek failed: {message}", source);
+			return _resolvedFrame == targetFrame && _resolvedFrame >= 0 &&
+				_player.texture != null && _player.frame == _resolvedFrame;
 		}
 
-		internal void Tick()
+		private long VideoFrameAt(double time)
 		{
-			if (!_seeking)
+			return _firstVideoFrame + (long)Math.Max(0d,
+				Math.Min(Math.Floor(time * _videoFps + 1e-7d), _lastVideoFrame));
+		}
+
+		private void ApplyVideoSpeed()
+		{
+			if (!_player.canSetPlaybackSpeed)
 			{
-				return;
-			}
-			if (_player == null || !_player.isPrepared)
-			{
-				CancelSeek();
-				_paused = true;
-				return;
-			}
-			CompleteSeekIfReady();
-			if (_seeking && Time.realtimeSinceStartupAsDouble - _seekStartedAt >= 10d)
-			{
-				bool resume = _resumeAfterSeek && !_paused;
-				CancelSeek();
-				if (resume)
+				if (!Mathf.Approximately(_speed, 1f))
 				{
-					_player.Play();
+					Fail("The preview video does not support changing playback speed.");
 				}
-				Debug.LogWarning("[DHMGS] Video seek timed out; keeping the available frame.", _player);
+				return;
+			}
+			_player.playbackSpeed = _speed;
+		}
+
+		private void OnVideoError(VideoPlayer source, string message)
+		{
+			if (!_disposed && source == _player)
+			{
+				Fail($"Preview video failed: {message}");
 			}
 		}
 
-		private void CancelSeek()
+		private void Fail(string message)
 		{
-			if (_seeking && _player != null)
+			if (_disposed || !string.IsNullOrEmpty(_error))
 			{
-				_player.seekCompleted -= OnSeekCompleted;
-				_player.frameReady -= OnFrameReady;
-				_player.errorReceived -= OnSeekError;
-				_player.sendFrameReadyEvents = _previousFrameReadyEvents;
+				return;
 			}
+			_error = message;
+			_paused = true;
+			_waiting = false;
 			_seeking = false;
-			_resumeAfterSeek = false;
+			_timeline.SetPaused(true);
+			_timeline.SeekTime(_publishedTime);
+			if (_player != null && _player.isPrepared)
+			{
+				_player.Pause();
+			}
+			Debug.LogError($"[DHMGS] {message}", _player);
+		}
+
+		private static bool IsFinite(double value)
+		{
+			return !double.IsNaN(value) && !double.IsInfinity(value);
 		}
 
 		public void Dispose()
 		{
-			CancelSeek();
+			if (_disposed)
+			{
+				return;
+			}
 			_disposed = true;
+			_paused = true;
+			_waiting = false;
+			_seeking = false;
+			_timeline.Dispose();
+			if (_player != null)
+			{
+				_player.seekCompleted -= OnSeekCompleted;
+				_player.frameReady -= OnFrameReady;
+				_player.errorReceived -= OnVideoError;
+				if (_player.isPrepared)
+				{
+					_player.Pause();
+				}
+				_player.sendFrameReadyEvents = _previousFrameReadyEvents;
+				_player.isLooping = _previousLooping;
+				_player.timeReference = _previousTimeReference;
+				_player.timeUpdateMode = _previousTimeUpdateMode;
+				if (_player.canSetPlaybackSpeed)
+				{
+					_player.playbackSpeed = _previousPlaybackSpeed;
+				}
+				if (_player.canSetSkipOnDrop)
+				{
+					_player.skipOnDrop = _previousSkipOnDrop;
+				}
+			}
 		}
 	}
 }

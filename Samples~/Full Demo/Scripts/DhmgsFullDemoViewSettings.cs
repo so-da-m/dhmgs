@@ -2,119 +2,92 @@ using System;
 using System.Collections.Generic;
 
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs.Samples
 {
-	/// <summary>View selection, visibility and camera controls, independent of transport UI.</summary>
 	public sealed class DhmgsFullDemoViewSettings : MonoBehaviour
 	{
-		[SerializeField] private DhmgsMotionPlayer _player;
+		[SerializeField] private DhmgsFullDemoPlayback _playback;
 		[SerializeField] private DhmgsOrbitCamera _mainViewCamera;
-		[SerializeField] private DhmgsFixedAvatarCamera _humanoidPreviewCamera;
-		[SerializeField] private Button _mainResetCameraButton;
-		[SerializeField] private Button _humanoidResetCameraButton;
-		[SerializeField] private Dropdown _avatarDropdown;
-		[SerializeField] private Dropdown _clothesDropdown;
-		[SerializeField] private Slider _avatarOpacitySlider;
-		[SerializeField] private Slider _clothesOpacitySlider;
-		[SerializeField] private Slider _videoOpacitySlider;
-		[SerializeField] private Text _avatarOpacityValue;
-		[SerializeField] private Text _clothesOpacityValue;
-		[SerializeField] private Text _videoOpacityValue;
+		[SerializeField] private DhmgsAvatarPreviewCamera _humanoidPreviewCamera;
 
-		private DhmgsSampleImportContext _importContext;
+		private readonly List<string> _avatarNames = new List<string> { "None" };
+		private readonly List<string> _clothesNames = new List<string> { "None" };
+		private DhmgsMotionPlayer Player => _playback != null ? _playback.Player : null;
 
-		public void SetImportContext(DhmgsSampleImportContext context)
-		{
-			_importContext = context;
-			if (_videoOpacitySlider != null)
-			{
-				_videoOpacitySlider.interactable = DhmgsFullDemoImportGateway.IsAvailable &&
-					DhmgsFullDemoImportGateway.SupportsVideoPreview(context);
-			}
-		}
+		public event Action Changed;
+
+		public IReadOnlyList<string> AvatarNames => _avatarNames;
+		public IReadOnlyList<string> ClothesNames => _clothesNames;
+		public int AvatarIndex => Player != null ? Player.ActiveAvatar + 1 : 0;
+		public int ClothesIndex => Player != null ? Player.ActiveClothes + 1 : 0;
+		public float AvatarOpacity { get; private set; } = 1f;
+		public float ClothesOpacity { get; private set; } = 1f;
+		public float VideoOpacity { get; private set; } = 1f;
+		public bool ShowMainBones { get; private set; }
+		public bool ShowMainBoneNames { get; private set; }
+		public bool ShowHumanoidBones { get; private set; }
+		public bool ShowHumanoidBoneNames { get; private set; }
+		public bool CanSetVideoOpacity => _playback != null && _playback.CanSetVideoOpacity;
 
 		private void OnEnable()
 		{
-			_mainResetCameraButton?.onClick.AddListener(ResetMainCamera);
-			_humanoidResetCameraButton?.onClick.AddListener(ResetHumanoidPreviewCamera);
-			_avatarDropdown?.onValueChanged.AddListener(OnAvatarChanged);
-			_clothesDropdown?.onValueChanged.AddListener(OnClothesChanged);
-			_avatarOpacitySlider?.onValueChanged.AddListener(OnAvatarOpacityChanged);
-			_clothesOpacitySlider?.onValueChanged.AddListener(OnClothesOpacityChanged);
-			_videoOpacitySlider?.onValueChanged.AddListener(OnVideoOpacityChanged);
-		}
-
-		private void Start()
-		{
-			BindSelectors();
-			RefreshControlValues();
+			if (_playback != null)
+			{
+				_playback.MotionLoaded += OnMotionLoaded;
+			}
 		}
 
 		private void OnDisable()
 		{
-			_mainResetCameraButton?.onClick.RemoveListener(ResetMainCamera);
-			_humanoidResetCameraButton?.onClick.RemoveListener(ResetHumanoidPreviewCamera);
-			_avatarDropdown?.onValueChanged.RemoveListener(OnAvatarChanged);
-			_clothesDropdown?.onValueChanged.RemoveListener(OnClothesChanged);
-			_avatarOpacitySlider?.onValueChanged.RemoveListener(OnAvatarOpacityChanged);
-			_clothesOpacitySlider?.onValueChanged.RemoveListener(OnClothesOpacityChanged);
-			_videoOpacitySlider?.onValueChanged.RemoveListener(OnVideoOpacityChanged);
+			if (_playback != null)
+			{
+				_playback.MotionLoaded -= OnMotionLoaded;
+			}
+		}
+
+		private void Start()
+		{
+			RefreshSelections();
+			ApplyOpacities();
+			Changed?.Invoke();
 		}
 
 		public void OnMotionLoaded()
 		{
 			ResetMainCamera();
 			_humanoidPreviewCamera?.Relock();
-			RefreshControlValues();
+			RefreshSelections();
+			ApplyOpacities();
+			Changed?.Invoke();
 		}
 
-		private void BindSelectors()
+		private void RefreshSelections()
 		{
-			if (_player == null)
+			_avatarNames.Clear();
+			_avatarNames.Add("None");
+			_clothesNames.Clear();
+			_clothesNames.Add("None");
+			if (Player == null)
 			{
 				return;
 			}
 
-			BindDropdown(_avatarDropdown, _player.AvatarCount, _player.AvatarName, _player.ActiveAvatar);
-			BindDropdown(_clothesDropdown, _player.ClothesCount, _player.ClothesName, _player.ActiveClothes);
-			if (_clothesDropdown != null)
+			for (int index = 0; index < Player.AvatarCount; index++)
 			{
-				_clothesDropdown.interactable = _player.ClothesCount > 0;
+				_avatarNames.Add(Player.AvatarName(index));
 			}
-			if (_clothesOpacitySlider != null)
+			for (int index = 0; index < Player.ClothesCount; index++)
 			{
-				_clothesOpacitySlider.interactable = _player.ClothesCount > 0;
+				_clothesNames.Add(Player.ClothesName(index));
 			}
 		}
 
-		private static void BindDropdown(
-			Dropdown dropdown,
-			int count,
-			Func<int, string> nameAt,
-			int activeIndex)
+		public void SetAvatarIndex(int value)
 		{
-			if (dropdown == null)
-			{
-				return;
-			}
-
-			List<string> options = new List<string> { "None" };
-			for (int index = 0; index < count; index++)
-			{
-				options.Add(nameAt(index));
-			}
-			dropdown.ClearOptions();
-			dropdown.AddOptions(options);
-			dropdown.SetValueWithoutNotify(Mathf.Clamp(activeIndex + 1, 0, options.Count - 1));
-			dropdown.RefreshShownValue();
-		}
-
-		private void OnAvatarChanged(int value)
-		{
-			_player?.SetAvatarIndex(value - 1);
-			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
+			Player?.SetAvatarIndex(Mathf.Clamp(value, 0, Player.AvatarCount) - 1);
+			ApplyOpacity(Player?.ActiveAvatarDriver, AvatarOpacity);
+			Changed?.Invoke();
 		}
 
 		public void ResetMainCamera()
@@ -122,33 +95,61 @@ namespace Mnnh.Dhmgs.Samples
 			_mainViewCamera?.ResetView();
 		}
 
-		private void ResetHumanoidPreviewCamera()
+		public void ResetHumanoidPreviewCamera()
 		{
 			_humanoidPreviewCamera?.ResetView();
 		}
 
-		private void OnClothesChanged(int value)
+		public void SetClothesIndex(int value)
 		{
-			_player?.SetClothesIndex(value - 1);
-			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
+			Player?.SetClothesIndex(Mathf.Clamp(value, 0, Player.ClothesCount) - 1);
+			ApplyOpacity(Player?.ActiveClothesDriver, ClothesOpacity);
+			Changed?.Invoke();
 		}
 
-		private void OnAvatarOpacityChanged(float value)
+		public void SetAvatarOpacity(float value)
 		{
-			ApplyOpacity(_player?.ActiveAvatarDriver, value);
-			SetValue(_avatarOpacityValue, value);
+			AvatarOpacity = Mathf.Clamp01(value);
+			ApplyOpacity(Player?.ActiveAvatarDriver, AvatarOpacity);
+			Changed?.Invoke();
 		}
 
-		private void OnClothesOpacityChanged(float value)
+		public void SetClothesOpacity(float value)
 		{
-			ApplyOpacity(_player?.ActiveClothesDriver, value);
-			SetValue(_clothesOpacityValue, value);
+			ClothesOpacity = Mathf.Clamp01(value);
+			ApplyOpacity(Player?.ActiveClothesDriver, ClothesOpacity);
+			Changed?.Invoke();
 		}
 
-		private void OnVideoOpacityChanged(float value)
+		public void SetVideoOpacity(float value)
 		{
-			DhmgsFullDemoImportGateway.SetVideoOpacity(_importContext, value);
-			SetValue(_videoOpacityValue, value);
+			VideoOpacity = Mathf.Clamp01(value);
+			_playback?.SetVideoOpacity(VideoOpacity);
+			Changed?.Invoke();
+		}
+
+		public void SetMainBones(bool value)
+		{
+			ShowMainBones = value;
+			Changed?.Invoke();
+		}
+
+		public void SetMainBoneNames(bool value)
+		{
+			ShowMainBoneNames = value;
+			Changed?.Invoke();
+		}
+
+		public void SetHumanoidBones(bool value)
+		{
+			ShowHumanoidBones = value;
+			Changed?.Invoke();
+		}
+
+		public void SetHumanoidBoneNames(bool value)
+		{
+			ShowHumanoidBoneNames = value;
+			Changed?.Invoke();
 		}
 
 		private static void ApplyOpacity(DhmgsRigDriver driver, float value)
@@ -157,19 +158,11 @@ namespace Mnnh.Dhmgs.Samples
 			opacity?.SetOpacity(value);
 		}
 
-		private static void SetValue(Text label, float value)
+		private void ApplyOpacities()
 		{
-			if (label != null)
-			{
-				label.text = value.ToString("F2");
-			}
-		}
-
-		private void RefreshControlValues()
-		{
-			OnAvatarOpacityChanged(_avatarOpacitySlider != null ? _avatarOpacitySlider.value : 1f);
-			OnClothesOpacityChanged(_clothesOpacitySlider != null ? _clothesOpacitySlider.value : 1f);
-			OnVideoOpacityChanged(_videoOpacitySlider != null ? _videoOpacitySlider.value : 1f);
+			ApplyOpacity(Player?.ActiveAvatarDriver, AvatarOpacity);
+			ApplyOpacity(Player?.ActiveClothesDriver, ClothesOpacity);
+			_playback?.SetVideoOpacity(VideoOpacity);
 		}
 	}
 }

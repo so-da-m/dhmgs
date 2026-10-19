@@ -1,15 +1,10 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace Mnnh.Dhmgs
 {
-	/// <summary>
-	/// Adds pointer navigation to a separate display camera without moving the camera
-	/// used to interpret motion or align the source video. Attach to a raycastable UI surface.
-	/// </summary>
 	[DisallowMultipleComponent]
 	[DefaultExecutionOrder(9000)]
-	public sealed class DhmgsOrbitCamera : MonoBehaviour, IBeginDragHandler, IDragHandler, IScrollHandler
+	public sealed class DhmgsOrbitCamera : MonoBehaviour
 	{
 		[Header("Cameras")]
 		[SerializeField] private Camera _camera;
@@ -63,43 +58,37 @@ namespace Mnnh.Dhmgs
 			ApplyReferenceView();
 		}
 
-		public void OnBeginDrag(PointerEventData eventData)
+		public void Orbit(Vector2 delta)
 		{
-			if (isActiveAndEnabled && eventData != null)
-			{
-				TryBeginOrbit();
-			}
-		}
-
-		public void OnDrag(PointerEventData eventData)
-		{
-			if (!isActiveAndEnabled || eventData == null || eventData.delta.sqrMagnitude == 0f || !TryBeginOrbit())
+			if (!isActiveAndEnabled || delta.sqrMagnitude == 0f || !TryBeginOrbit())
 			{
 				return;
 			}
-
-			if (eventData.button == PointerEventData.InputButton.Left)
-			{
-				_yaw += eventData.delta.x * _orbitSpeed;
-				float minimumPitch = Mathf.Clamp(_minPitch, -89f, 89f);
-				_pitch = Mathf.Clamp(_pitch + eventData.delta.y * _orbitSpeed,
-					minimumPitch, Mathf.Clamp(_maxPitch, minimumPitch, 89f));
-			}
-			else
-			{
-				_pan += DhmgsCameraNavigation.PanOffset(_camera.transform, eventData.delta, _distance, _panSpeed);
-			}
+			_yaw += delta.x * _orbitSpeed;
+			float minimumPitch = Mathf.Clamp(_minPitch, -89f, 89f);
+			_pitch = Mathf.Clamp(_pitch + delta.y * _orbitSpeed,
+				minimumPitch, Mathf.Clamp(_maxPitch, minimumPitch, 89f));
 			ApplyOrbitView();
 		}
 
-		public void OnScroll(PointerEventData eventData)
+		public void Pan(Vector2 delta)
 		{
-			if (!isActiveAndEnabled || eventData == null || eventData.scrollDelta.y == 0f || !TryBeginOrbit())
+			if (!isActiveAndEnabled || delta.sqrMagnitude == 0f || !TryBeginOrbit())
+			{
+				return;
+			}
+			_pan += DhmgsCameraNavigation.PanOffset(_camera.transform, delta, _distance, _panSpeed);
+			ApplyOrbitView();
+		}
+
+		public void Zoom(float delta)
+		{
+			if (!isActiveAndEnabled || delta == 0f || !TryBeginOrbit())
 			{
 				return;
 			}
 			float minimum = Mathf.Max(0.01f, _minDistance);
-			_distance = Mathf.Clamp(_distance - eventData.scrollDelta.y * _zoomSpeed,
+			_distance = Mathf.Clamp(_distance - delta * _zoomSpeed,
 				minimum, Mathf.Max(minimum, _maxDistance));
 			ApplyOrbitView();
 		}
@@ -190,9 +179,13 @@ namespace Mnnh.Dhmgs
 
 		private void CopyReferenceSettings()
 		{
-			// Keep the calibrated projection and viewport in both modes: the first gesture
-			// must not change framing before the user has moved the camera.
+			RenderTexture output = _camera.targetTexture;
+			Rect viewport = _camera.rect;
+			float aspect = _camera.aspect;
 			_camera.CopyFrom(_referenceCamera);
+			_camera.targetTexture = output;
+			_camera.rect = viewport;
+			_camera.aspect = aspect;
 			_camera.projectionMatrix = _referenceCamera.projectionMatrix;
 			_camera.enabled = _referenceCamera.gameObject.activeInHierarchy;
 		}

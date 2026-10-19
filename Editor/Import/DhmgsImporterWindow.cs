@@ -15,7 +15,6 @@ namespace Mnnh.Dhmgs.Editor
 		private string _baseUrl;
 		private string _outputRoot;
 		private string _attemptIdText;
-		private GameObject _smplxBakeSource;
 		private bool _bakeGeneric;
 		private bool _bakeHumanoid;
 		private bool _cachePreviewVideo;
@@ -47,7 +46,6 @@ namespace Mnnh.Dhmgs.Editor
 			_baseUrl = settings.BaseUrl;
 			_outputRoot = settings.OutputRoot;
 			_attemptIdText = settings.AttemptIdText;
-			_smplxBakeSource = settings.LoadSmplxBakeSource();
 			_bakeGeneric = settings.BakeGeneric;
 			_bakeHumanoid = settings.BakeHumanoid;
 			_cachePreviewVideo = settings.CachePreviewVideo;
@@ -73,11 +71,6 @@ namespace Mnnh.Dhmgs.Editor
 
 				EditorGUILayout.Space();
 				EditorGUILayout.LabelField("Animation Clip Baking", EditorStyles.boldLabel);
-				_smplxBakeSource = (GameObject)EditorGUILayout.ObjectField(
-					"SMPL-X Bake Source",
-					_smplxBakeSource,
-					typeof(GameObject),
-					false);
 				_bakeGeneric = EditorGUILayout.Toggle("Bake Generic Clip", _bakeGeneric);
 				_bakeHumanoid = EditorGUILayout.Toggle("Bake Humanoid Clips", _bakeHumanoid);
 				_cachePreviewVideo = EditorGUILayout.Toggle(
@@ -90,7 +83,6 @@ namespace Mnnh.Dhmgs.Editor
 						_baseUrl,
 						_outputRoot,
 						_attemptIdText,
-						_smplxBakeSource,
 						_bakeGeneric,
 						_bakeHumanoid,
 						_cachePreviewVideo);
@@ -158,7 +150,6 @@ namespace Mnnh.Dhmgs.Editor
 				_baseUrl,
 				attemptId,
 				_outputRoot,
-				_smplxBakeSource,
 				outputs,
 				_cachePreviewVideo ? DhmgsVideoPolicy.CacheIfPresent : DhmgsVideoPolicy.Ignore);
 		}

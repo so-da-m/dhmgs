@@ -23,11 +23,11 @@ namespace Mnnh.Dhmgs.Editor
 	{
 		internal static async Task<AnimationClip> BakeGenericAsync(
 			DhmgsMotionAsset asset,
-			GameObject model,
 			Action<float> onProgress,
 			CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
+			GameObject model = DhmgsPackageDefaults.LoadNeutralSmplx();
 			if (!Validate(asset, model, out string error))
 			{
 				throw new InvalidOperationException(error);
@@ -45,11 +45,11 @@ namespace Mnnh.Dhmgs.Editor
 
 		internal static async Task<DhmgsHumanoidBakeArtifacts> BakeHumanoidVariantsAsync(
 			DhmgsMotionAsset asset,
-			GameObject model,
 			Action<float> onProgress,
 			CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
+			GameObject model = DhmgsPackageDefaults.LoadNeutralSmplx();
 			if (!Validate(asset, model, out string error))
 			{
 				return new DhmgsHumanoidBakeArtifacts { Error = error };
@@ -83,7 +83,7 @@ namespace Mnnh.Dhmgs.Editor
 			}
 			if (model == null)
 			{
-				error = "모델 GameObject가 없음";
+				error = "번들 Neutral SMPL-X 베이크 모델을 찾을 수 없음";
 				return false;
 			}
 			if (asset.fps <= 0f)
@@ -215,22 +215,15 @@ namespace Mnnh.Dhmgs.Editor
 					cancellationToken.ThrowIfCancellationRequested();
 					string path = AnimationUtility.CalculateTransformPath(driven.Key, instance.transform);
 					Quaternion[] rotations = new Quaternion[asset.frameCount];
-					Quaternion previous = Quaternion.identity;
 					for (int frameIndex = 0; frameIndex < asset.frameCount; frameIndex++)
 					{
 						if ((frameIndex & 31) == 0)
 						{
 							await editorYield.CheckpointAsync(cancellationToken);
 						}
-						Quaternion rotation = driven.Value < 0
+						rotations[frameIndex] = driven.Value < 0
 							? asset.pelvisRotations[frameIndex]
 							: asset.boneRotations[frameIndex * asset.boneCount + driven.Value];
-						if (frameIndex > 0 && Quaternion.Dot(previous, rotation) < 0f)
-						{
-							rotation = new Quaternion(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
-						}
-						rotations[frameIndex] = rotation;
-						previous = rotation;
 					}
 
 					SetLocalRotationCurves(clip, path, rotations, asset.fps, cancellationToken);
@@ -301,10 +294,7 @@ namespace Mnnh.Dhmgs.Editor
 			Keyframe[] rootMotionPositionX = new Keyframe[frameCount];
 			Keyframe[] rootMotionPositionY = new Keyframe[frameCount];
 			Keyframe[] rootMotionPositionZ = new Keyframe[frameCount];
-			Keyframe[] rootRotationX = new Keyframe[frameCount];
-			Keyframe[] rootRotationY = new Keyframe[frameCount];
-			Keyframe[] rootRotationZ = new Keyframe[frameCount];
-			Keyframe[] rootRotationW = new Keyframe[frameCount];
+			Quaternion[] rootRotations = new Quaternion[frameCount];
 			Keyframe[][] muscleKeyframes = new Keyframe[muscleCount][];
 			for (int muscleIndex = 0; muscleIndex < muscleKeyframes.Length; muscleIndex++)
 			{
@@ -326,14 +316,10 @@ namespace Mnnh.Dhmgs.Editor
 				poseHandler.GetHumanPose(ref humanPose);
 
 				Vector3 bodyPosition = humanPose.bodyPosition;
-				Quaternion bodyRotation = humanPose.bodyRotation;
+				rootRotations[frameIndex] = humanPose.bodyRotation;
 				inPlacePositionX[frameIndex] = new Keyframe(time, bodyPosition.x);
 				inPlacePositionY[frameIndex] = new Keyframe(time, bodyPosition.y);
 				inPlacePositionZ[frameIndex] = new Keyframe(time, bodyPosition.z);
-				rootRotationX[frameIndex] = new Keyframe(time, bodyRotation.x);
-				rootRotationY[frameIndex] = new Keyframe(time, bodyRotation.y);
-				rootRotationZ[frameIndex] = new Keyframe(time, bodyRotation.z);
-				rootRotationW[frameIndex] = new Keyframe(time, bodyRotation.w);
 				for (int muscleIndex = 0; muscleIndex < muscleCount; muscleIndex++)
 				{
 					muscleKeyframes[muscleIndex][frameIndex] =
@@ -352,6 +338,8 @@ namespace Mnnh.Dhmgs.Editor
 				onProgress?.Invoke(frameCount > 0 ? (float)frameIndex / frameCount * 0.72f : 0.72f);
 			}
 
+			Keyframe[][] rootRotationKeys = DhmgsQuaternionCurves.CreateKeys(
+				rootRotations, asset.fps, false, cancellationToken);
 			AnimationClip inPlaceClip = null;
 			AnimationClip rootMotionClip = null;
 			try
@@ -361,10 +349,10 @@ namespace Mnnh.Dhmgs.Editor
 					inPlacePositionX,
 					inPlacePositionY,
 					inPlacePositionZ,
-					rootRotationX,
-					rootRotationY,
-					rootRotationZ,
-					rootRotationW,
+					rootRotationKeys[0],
+					rootRotationKeys[1],
+					rootRotationKeys[2],
+					rootRotationKeys[3],
 					muscleKeyframes,
 					true,
 					value => onProgress?.Invoke(0.72f + value * 0.14f),
@@ -374,10 +362,10 @@ namespace Mnnh.Dhmgs.Editor
 					rootMotionPositionX,
 					rootMotionPositionY,
 					rootMotionPositionZ,
-					rootRotationX,
-					rootRotationY,
-					rootRotationZ,
-					rootRotationW,
+					rootRotationKeys[0],
+					rootRotationKeys[1],
+					rootRotationKeys[2],
+					rootRotationKeys[3],
 					muscleKeyframes,
 					false,
 					value => onProgress?.Invoke(0.86f + value * 0.14f),
@@ -462,39 +450,15 @@ namespace Mnnh.Dhmgs.Editor
 			float fps,
 			CancellationToken cancellationToken)
 		{
+			Keyframe[][] keys = DhmgsQuaternionCurves.CreateKeys(rotations, fps, true, cancellationToken);
 			SetTransformCurve(clip, path, "m_LocalRotation.x",
-				CreateLinearKeys(rotations, value => value.x, fps, cancellationToken), cancellationToken);
+				keys[0], cancellationToken);
 			SetTransformCurve(clip, path, "m_LocalRotation.y",
-				CreateLinearKeys(rotations, value => value.y, fps, cancellationToken), cancellationToken);
+				keys[1], cancellationToken);
 			SetTransformCurve(clip, path, "m_LocalRotation.z",
-				CreateLinearKeys(rotations, value => value.z, fps, cancellationToken), cancellationToken);
+				keys[2], cancellationToken);
 			SetTransformCurve(clip, path, "m_LocalRotation.w",
-				CreateLinearKeys(rotations, value => value.w, fps, cancellationToken), cancellationToken);
-		}
-
-		private static Keyframe[] CreateLinearKeys(
-			Quaternion[] rotations,
-			Func<Quaternion, float> component,
-			float fps,
-			CancellationToken cancellationToken)
-		{
-			Keyframe[] keys = new Keyframe[rotations.Length];
-			float frameDuration = 1f / fps;
-			for (int index = 0; index < rotations.Length; index++)
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				float value = component(rotations[index]);
-				float inTangent = index > 0
-					? (value - component(rotations[index - 1])) / frameDuration
-					: index + 1 < rotations.Length
-						? (component(rotations[index + 1]) - value) / frameDuration
-						: 0f;
-				float outTangent = index + 1 < rotations.Length
-					? (component(rotations[index + 1]) - value) / frameDuration
-					: inTangent;
-				keys[index] = new Keyframe(index * frameDuration, value, inTangent, outTangent);
-			}
-			return keys;
+				keys[3], cancellationToken);
 		}
 
 		private static void SetTransformCurve(

@@ -24,11 +24,23 @@ namespace Mnnh.Dhmgs
 		public int ActiveClothes => _activeClothes;
 		public bool IsPlaying => _playing;
 		public DhmgsMotionAsset Motion => _motion;
+		public IDhmgsPlaybackClock Clock => _clock;
 		public int CurrentFrame => _clock?.CurrentFrame ?? 0;
 		public bool CanSeek => _playing && _motion != null && _motion.IsValid &&
 			_clock is IDhmgsSeekablePlaybackClock seekable && seekable.CanSeek;
 		public bool IsPaused => _clock is IDhmgsSeekablePlaybackClock seekable && seekable.IsPaused;
 		public bool IsSeeking => _clock is IDhmgsSeekablePlaybackClock seekable && seekable.IsSeeking;
+		public bool IsWaiting => _clock is IDhmgsSeekablePlaybackClock seekable && seekable.IsWaiting;
+		public string PlaybackError => _clock is IDhmgsSeekablePlaybackClock seekable ? seekable.Error : null;
+
+		public double CurrentTime
+		{
+			get
+			{
+				double time = _clock?.CurrentTime ?? 0d;
+				return double.IsNaN(time) || double.IsInfinity(time) ? 0d : System.Math.Max(0d, time);
+			}
+		}
 
 		public DhmgsRigDriver ActiveAvatarDriver => DriverAt(_avatars, _activeAvatar);
 		public DhmgsRigDriver ActiveClothesDriver => DriverAt(_clothes, _activeClothes);
@@ -73,27 +85,28 @@ namespace Mnnh.Dhmgs
 			{
 				return;
 			}
-			ApplyFrame(_clock.CurrentFrame);
+			ApplyTime(CurrentTime);
 		}
 
 		public void Play(DhmgsMotionAsset motion, IDhmgsPlaybackClock clock)
 		{
-			_motion = motion;
-			_clock = clock;
+			Stop();
 			if (motion == null || !motion.IsValid || clock == null)
 			{
-				_playing = false;
 				return;
 			}
 
-			clock.Begin(motion.frameCount, motion.fps);
+			_motion = motion;
+			_clock = clock;
 			_playing = true;
-			ApplyFrame(0);
+			ApplyTime(CurrentTime);
 		}
 
 		public void Stop()
 		{
 			_playing = false;
+			_clock = null;
+			_motion = null;
 		}
 
 		public void SetPlaybackSpeed(float speed)
@@ -108,7 +121,7 @@ namespace Mnnh.Dhmgs
 				return false;
 			}
 			((IDhmgsSeekablePlaybackClock)_clock).SeekFrame(Mathf.Clamp(frame, 0, _motion.frameCount - 1));
-			ApplyFrame(_clock.CurrentFrame);
+			ApplyTime(CurrentTime);
 			return true;
 		}
 
@@ -134,36 +147,36 @@ namespace Mnnh.Dhmgs
 		{
 			_activeAvatar = Activate(_avatars, _activeAvatar, index);
 			BindCamera(_avatars, _activeAvatar);
-			ReapplyCurrentFrame();
+			ReapplyCurrentTime();
 		}
 
 		public void SetClothesIndex(int index)
 		{
 			_activeClothes = Activate(_clothes, _activeClothes, index);
 			BindCamera(_clothes, _activeClothes);
-			ReapplyCurrentFrame();
+			ReapplyCurrentTime();
 		}
 
-		private void ApplyFrame(int frameIndex)
+		private void ApplyTime(double timeSeconds)
 		{
-			ApplyTo(_avatars, _activeAvatar, frameIndex);
-			ApplyTo(_clothes, _activeClothes, frameIndex);
+			ApplyTo(_avatars, _activeAvatar, timeSeconds);
+			ApplyTo(_clothes, _activeClothes, timeSeconds);
 		}
 
-		private void ApplyTo(List<DhmgsRigDriver> drivers, int index, int frameIndex)
+		private void ApplyTo(List<DhmgsRigDriver> drivers, int index, double timeSeconds)
 		{
 			DhmgsRigDriver driver = DriverAt(drivers, index);
 			if (_motion != null && driver != null)
 			{
-				driver.ApplyFrame(_motion, frameIndex);
+				driver.ApplyTime(_motion, timeSeconds);
 			}
 		}
 
-		private void ReapplyCurrentFrame()
+		private void ReapplyCurrentTime()
 		{
 			if (_playing && _motion != null && _clock != null)
 			{
-				ApplyFrame(_clock.CurrentFrame);
+				ApplyTime(CurrentTime);
 			}
 		}
 

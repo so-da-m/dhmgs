@@ -1,5 +1,6 @@
 using System;
-using System.Collections;
+using System.Threading;
+using System.Threading.Tasks;
 
 using UnityEngine;
 using UnityEngine.Video;
@@ -8,36 +9,18 @@ namespace Mnnh.Dhmgs
 {
 	public sealed class DhmgsCameraOverlay : MonoBehaviour
 	{
-		private sealed class VideoPreparation
-		{
-			public VideoPlayer Player;
-			public VideoPlayer.EventHandler PreparedHandler;
-			public VideoPlayer.ErrorEventHandler ErrorHandler;
-			public bool IsFinished;
-			public bool Succeeded;
-		}
-
 		[SerializeField] private Camera _camera;
 		[SerializeField] private VideoPlayer _videoPlayer;
-		[Tooltip("쿼드 depth(카메라 앞 거리). 0이면 아바타 뒤로 자동(배경처럼 깔림).")]
-		[SerializeField] private float _quadDepth = 0f;
-		[SerializeField] private bool _loop = true;
-		[Tooltip("영상 불투명도. 0=투명, 1=불투명. 0.5면 아바타와 영상이 겹쳐 보임(정합 확인용).")]
+		[SerializeField] private float _quadDepth;
 		[Range(0f, 1f)]
 		[SerializeField] private float _videoAlpha = 0.5f;
-		[Tooltip("영상 쿼드를 둘 레이어 이름(선택). 지정하면 그 레이어로 생성 → 특정 PiP 카메라 Culling Mask에서 빼 숨길 수 있다. 비우면 Default.")]
-		[SerializeField] private string _surfaceLayer = "";
+		[SerializeField] private string _surfaceLayer = string.Empty;
 
 		private DhmgsVideoSurface _surface;
-		private VideoPreparation _preparation;
-		private DhmgsVideoClock _clock;
-		private Rect _backupRect;
-		private bool _backedUp;
+		private Action _cancelPreparation;
+		private bool _destroyed;
 
-		/// <summary>
-		/// Configure before Activate. Cancel the activation routine and Deactivate before reconfiguring.
-		/// </summary>
-		public void Configure(Camera camera, VideoPlayer videoPlayer, bool loop, float videoAlpha, string surfaceLayer)
+		public void Configure(Camera camera, VideoPlayer videoPlayer, float videoAlpha, string surfaceLayer)
 		{
 			if (camera == null)
 			{
@@ -47,96 +30,199 @@ namespace Mnnh.Dhmgs
 			{
 				throw new ArgumentNullException(nameof(videoPlayer));
 			}
-			if (_preparation != null || _clock != null || _backedUp)
+			if (_cancelPreparation != null)
 			{
-				throw new InvalidOperationException("Deactivate the video overlay before reconfiguring it.");
+				throw new InvalidOperationException("Video preparation is still active.");
 			}
-
 			DestroySurface();
 			_camera = camera;
 			_videoPlayer = videoPlayer;
-			_loop = loop;
 			_surfaceLayer = surfaceLayer ?? string.Empty;
 			SetVideoAlpha(videoAlpha);
 		}
 
-		public IEnumerator Activate(DhmgsMotionAsset asset, string videoPath, Action<IDhmgsPlaybackClock> onReady)
+		public async Task<IDhmgsSeekablePlaybackClock> PrepareAsync(
+			DhmgsMotionAsset asset,
+			string videoPath,
+			bool loop,
+			CancellationToken cancellationToken)
 		{
-			ReleaseClock();
-			CancelPreparation();
-			Camera cam = ResolveCamera();
-			if (cam == null || asset == null || !asset.HasProjection || string.IsNullOrEmpty(videoPath) || _videoPlayer == null)
+			cancellationToken.ThrowIfCancellationRequested();
+			if (_destroyed)
 			{
-				onReady?.Invoke(null);
-				yield break;
+				throw new ObjectDisposedException(nameof(DhmgsCameraOverlay));
+			}
+			if (_cancelPreparation != null)
+			{
+				throw new InvalidOperationException("Video preparation is already active.");
+			}
+			if (asset == null || !asset.IsValid || string.IsNullOrEmpty(videoPath))
+			{
+				throw new ArgumentException("A valid motion and video path are required.");
+			}
+			if (_camera == null)
+			{
+				_camera = GetComponent<Camera>();
+			}
+			if (_camera == null || _videoPlayer == null)
+			{
+				throw new InvalidOperationException("The video overlay requires a camera and video player.");
 			}
 
-			BackupCamera(cam);
-
-			float near = cam.nearClipPlane;
-			float far = cam.farClipPlane;
-			Matrix4x4 proj = DhmgsProjection.BuildProjectionMatrix(
-				asset.focalLength.x, asset.focalLength.y,
-				asset.principalPoint.x, asset.principalPoint.y,
-				asset.imageWidth, asset.imageHeight, near, far);
-
-			cam.projectionMatrix = proj;
-			ApplyAspectFitRect(cam, asset.imageWidth, asset.imageHeight);
-
-			float depth = ResolveDepth(asset, near, far);
-			EnsureSurface(cam);
-			_surface.SetCorners(DhmgsProjection.FrustumCornersAtDepth(proj, depth));
+			EnsureSurface(_camera);
+			float depth = ResolveDepth(asset, _camera.nearClipPlane, _camera.farClipPlane);
+			_surface.SetCorners(DhmgsProjection.FrustumCornersAtDepth(_camera.projectionMatrix, depth));
 			_surface.BindVideo(_videoPlayer);
 			_surface.SetAlpha(_videoAlpha);
-			_surface.SetVisible(true);
+			_surface.SetVisible(false);
 
-			VideoPreparation preparation = new VideoPreparation();
-			yield return PrepareVideo(videoPath, preparation);
-			if (!preparation.Succeeded)
+			VideoPlayer player = _videoPlayer;
+			bool previousFrameReadyEvents = player.sendFrameReadyEvents;
+			bool previousSkipOnDrop = player.skipOnDrop;
+			bool subscribed = false;
+			bool prepared = false;
+			bool succeeded = false;
+			long firstFrame = -1;
+			long readyFrame = -1;
+			Exception error = null;
+			using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			CancellationToken token = cancellation.Token;
+			Action cancel = null;
+
+			bool IsCurrent(VideoPlayer source)
 			{
-				_surface.SetVisible(false);
-				RestoreCamera(cam);
-				onReady?.Invoke(null);
-				yield break;
+				return !_destroyed && !token.IsCancellationRequested && source == player &&
+					ReferenceEquals(_cancelPreparation, cancel);
+			}
+			void OnPrepared(VideoPlayer source)
+			{
+				if (!IsCurrent(source))
+				{
+					return;
+				}
+				prepared = true;
+				try
+				{
+					if (source.canSetSkipOnDrop)
+					{
+						source.skipOnDrop = false;
+					}
+					source.Play();
+				}
+				catch (Exception exception)
+				{
+					error = exception;
+				}
+			}
+			void OnFrameReady(VideoPlayer source, long frame)
+			{
+				if (!IsCurrent(source) || frame < 0)
+				{
+					return;
+				}
+				if (firstFrame < 0)
+				{
+					firstFrame = frame;
+				}
+				readyFrame = frame;
+				try
+				{
+					source.Pause();
+				}
+				catch (Exception exception)
+				{
+					error = exception;
+				}
+			}
+			void OnError(VideoPlayer source, string message)
+			{
+				if (IsCurrent(source))
+				{
+					error = new InvalidOperationException($"Video preparation failed: {message}");
+				}
+			}
+			void Unsubscribe()
+			{
+				if (!subscribed)
+				{
+					return;
+				}
+				subscribed = false;
+				if (player != null)
+				{
+					player.prepareCompleted -= OnPrepared;
+					player.frameReady -= OnFrameReady;
+					player.errorReceived -= OnError;
+					player.sendFrameReadyEvents = previousFrameReadyEvents;
+					if (player.canSetSkipOnDrop)
+					{
+						player.skipOnDrop = previousSkipOnDrop;
+					}
+				}
 			}
 
-			_videoPlayer.Play();
-			_clock = new DhmgsVideoClock(_videoPlayer);
-			onReady?.Invoke(_clock);
-		}
-
-		public void Deactivate()
-		{
-			ReleaseClock();
-			CancelPreparation();
-			if (_surface != null)
+			cancel = () =>
 			{
-				_surface.SetVisible(false);
-			}
-			if (_videoPlayer != null)
+				cancellation.Cancel();
+				Unsubscribe();
+			};
+			_cancelPreparation = cancel;
+			try
 			{
-				_videoPlayer.Stop();
+				player.Stop();
+				player.source = VideoSource.Url;
+				player.url = videoPath;
+				player.isLooping = false;
+				player.playOnAwake = false;
+				player.waitForFirstFrame = true;
+				player.prepareCompleted += OnPrepared;
+				player.frameReady += OnFrameReady;
+				player.errorReceived += OnError;
+				subscribed = true;
+				player.sendFrameReadyEvents = true;
+				double deadline = Time.realtimeSinceStartupAsDouble + 15d;
+				player.Prepare();
+				while (true)
+				{
+					token.ThrowIfCancellationRequested();
+					if (error != null)
+					{
+						throw error;
+					}
+					if (player == null)
+					{
+						throw new InvalidOperationException("The preview video player was destroyed during preparation.");
+					}
+					if (prepared && readyFrame >= 0 && player.isPrepared &&
+						player.texture != null && player.frame == readyFrame)
+					{
+						succeeded = true;
+						break;
+					}
+					if (Time.realtimeSinceStartupAsDouble >= deadline)
+					{
+						throw new TimeoutException("Video preparation timed out before the first frame was available.");
+					}
+					await Task.Yield();
+				}
 			}
-			Camera cam = ResolveCamera();
-			if (cam != null && _backedUp)
+			finally
 			{
-				RestoreCamera(cam);
+				Unsubscribe();
+				if (ReferenceEquals(_cancelPreparation, cancel))
+				{
+					_cancelPreparation = null;
+					if (!succeeded)
+					{
+						SetVideoVisible(false);
+						if (player != null)
+						{
+							player.Stop();
+						}
+					}
+				}
 			}
-		}
-
-		private void ReleaseClock()
-		{
-			_clock?.Dispose();
-			_clock = null;
-		}
-
-		private void Update()
-		{
-			_clock?.Tick();
-			if (_surface != null)
-			{
-				_surface.SetAlpha(_videoAlpha);
-			}
+			return new DhmgsVideoClock(player, loop, firstFrame);
 		}
 
 		public void SetVideoAlpha(float alpha)
@@ -148,46 +234,23 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		private Camera ResolveCamera()
+		public void SetVideoVisible(bool visible)
 		{
-			if (_camera == null)
+			if (_surface != null)
 			{
-				_camera = GetComponent<Camera>();
+				_surface.SetVisible(visible);
 			}
-			return _camera;
 		}
 
-		private void BackupCamera(Camera cam)
+		public void Deactivate()
 		{
-			_backupRect = cam.rect;
-			_backedUp = true;
-		}
-
-		private void RestoreCamera(Camera cam)
-		{
-			cam.ResetProjectionMatrix();
-			cam.ResetAspect();
-			cam.rect = _backupRect;
-			_backedUp = false;
-		}
-
-		private static void ApplyAspectFitRect(Camera cam, int videoWidth, int videoHeight)
-		{
-			if (videoWidth <= 0 || videoHeight <= 0)
+			Action cancel = _cancelPreparation;
+			_cancelPreparation = null;
+			cancel?.Invoke();
+			SetVideoVisible(false);
+			if (_videoPlayer != null)
 			{
-				return;
-			}
-			float videoAspect = (float)videoWidth / videoHeight;
-			float screenAspect = (float)Screen.width / Screen.height;
-			if (screenAspect > videoAspect)
-			{
-				float w = videoAspect / screenAspect;
-				cam.rect = new Rect((1f - w) * 0.5f, 0f, w, 1f);
-			}
-			else
-			{
-				float h = screenAspect / videoAspect;
-				cam.rect = new Rect(0f, (1f - h) * 0.5f, 1f, h);
+				_videoPlayer.Stop();
 			}
 		}
 
@@ -197,80 +260,36 @@ namespace Mnnh.Dhmgs
 			{
 				return Mathf.Clamp(_quadDepth, near * 1.01f, far * 0.99f);
 			}
-
 			float maxPelvisZ = near;
 			for (int i = 0; i < asset.pelvisPositions.Length; i++)
 			{
-				float z = asset.pelvisPositions[i].z;
-				if (z > maxPelvisZ)
-				{
-					maxPelvisZ = z;
-				}
+				maxPelvisZ = Mathf.Max(maxPelvisZ, asset.pelvisPositions[i].z);
 			}
 			return Mathf.Clamp(maxPelvisZ + 1f, near * 1.01f, far * 0.99f);
 		}
 
-		private void EnsureSurface(Camera cam)
+		private void EnsureSurface(Camera camera)
 		{
 			if (_surface != null)
 			{
 				return;
 			}
-			GameObject go = new GameObject("DhmgsVideoSurface");
-			go.transform.SetParent(cam.transform, false);
-			go.transform.localPosition = Vector3.zero;
-			go.transform.localRotation = Quaternion.identity;
-			go.transform.localScale = Vector3.one;
+			GameObject surface = new GameObject("DhmgsVideoSurface");
+			surface.transform.SetParent(camera.transform, false);
 			if (!string.IsNullOrEmpty(_surfaceLayer))
 			{
 				int layer = LayerMask.NameToLayer(_surfaceLayer);
 				if (layer >= 0)
 				{
-					go.layer = layer;
+					surface.layer = layer;
 				}
 			}
-			_surface = go.AddComponent<DhmgsVideoSurface>();
-		}
-
-		public void CancelPreparation()
-		{
-			VideoPreparation preparation = _preparation;
-			if (preparation == null)
-			{
-				return;
-			}
-
-			_preparation = null;
-			preparation.Succeeded = false;
-			preparation.IsFinished = true;
-			UnsubscribePreparation(preparation);
-			if (preparation.Player != null)
-			{
-				preparation.Player.Stop();
-			}
-		}
-
-		private static void UnsubscribePreparation(VideoPreparation preparation)
-		{
-			VideoPlayer player = preparation.Player;
-			if (player != null)
-			{
-				if (preparation.PreparedHandler != null)
-				{
-					player.prepareCompleted -= preparation.PreparedHandler;
-				}
-				if (preparation.ErrorHandler != null)
-				{
-					player.errorReceived -= preparation.ErrorHandler;
-				}
-			}
-
-			preparation.PreparedHandler = null;
-			preparation.ErrorHandler = null;
+			_surface = surface.AddComponent<DhmgsVideoSurface>();
 		}
 
 		private void OnDestroy()
 		{
+			_destroyed = true;
 			Deactivate();
 			DestroySurface();
 		}
@@ -281,71 +300,15 @@ namespace Mnnh.Dhmgs
 			{
 				return;
 			}
-
-			GameObject surfaceObject = _surface.gameObject;
+			GameObject surface = _surface.gameObject;
 			_surface = null;
-			if (surfaceObject == null)
-			{
-				return;
-			}
-
 			if (Application.isPlaying)
 			{
-				Destroy(surfaceObject);
+				Destroy(surface);
 			}
 			else
 			{
-				DestroyImmediate(surfaceObject);
-			}
-		}
-
-		private IEnumerator PrepareVideo(string filePath, VideoPreparation preparation)
-		{
-			CancelPreparation();
-			preparation.Player = _videoPlayer;
-			_preparation = preparation;
-			_videoPlayer.source = VideoSource.Url;
-			_videoPlayer.url = filePath;
-			_videoPlayer.isLooping = _loop;
-			_videoPlayer.playOnAwake = false;
-
-			void OnPrepared(VideoPlayer vp)
-			{
-				preparation.Succeeded = true;
-				preparation.IsFinished = true;
-				UnsubscribePreparation(preparation);
-			}
-			void OnError(VideoPlayer vp, string message)
-			{
-				preparation.Succeeded = false;
-				preparation.IsFinished = true;
-				UnsubscribePreparation(preparation);
-				Debug.LogError($"[DHMGS] 영상 prepare 실패: {message}");
-			}
-
-			preparation.PreparedHandler = OnPrepared;
-			preparation.ErrorHandler = OnError;
-			_videoPlayer.prepareCompleted += preparation.PreparedHandler;
-			_videoPlayer.errorReceived += preparation.ErrorHandler;
-			try
-			{
-				_videoPlayer.Prepare();
-			}
-			catch (Exception exception)
-			{
-				Debug.LogException(exception, this);
-				preparation.Succeeded = false;
-				preparation.IsFinished = true;
-				UnsubscribePreparation(preparation);
-			}
-			while (!preparation.IsFinished)
-			{
-				yield return null;
-			}
-			UnsubscribePreparation(preparation);
-			if (ReferenceEquals(_preparation, preparation))
-			{
-				_preparation = null;
+				DestroyImmediate(surface);
 			}
 		}
 	}

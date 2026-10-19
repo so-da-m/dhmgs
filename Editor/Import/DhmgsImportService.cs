@@ -20,11 +20,6 @@ namespace Mnnh.Dhmgs.Editor
 
 		public static bool IsBusy => Volatile.Read(ref _activeJob) != 0;
 
-		public static GameObject LoadBundledSmplxBakeSource()
-		{
-			return DhmgsPackageDefaults.LoadNeutralSmplx();
-		}
-
 		public static DhmgsImportValidation Validate(DhmgsImportJobRequest request)
 		{
 			List<DhmgsImportDiagnostic> diagnostics = new List<DhmgsImportDiagnostic>();
@@ -89,10 +84,13 @@ namespace Mnnh.Dhmgs.Editor
 				diagnostics.Add(Error("request.output.invalid", exception.Message));
 			}
 
-			DhmgsBakeSourceValidator.ValidatePreflight(
-				request.SmplxBakeSource,
-				request.BakeOutputs,
-				diagnostics);
+			if (request.BakeOutputs != DhmgsBakeOutputs.None)
+			{
+				DhmgsBakeSourceValidator.ValidatePreflight(
+					DhmgsPackageDefaults.LoadNeutralSmplx(),
+					request.BakeOutputs,
+					diagnostics);
+			}
 			return new DhmgsImportValidation(diagnostics);
 		}
 
@@ -141,7 +139,7 @@ namespace Mnnh.Dhmgs.Editor
 					Report(onProgress, jobId, revision, DhmgsImportJobStage.ValidatingBakeSource, 0f, 0.57f,
 						"Validating SMPL-X bake source", true);
 					DhmgsBakeSourceValidator.ValidateForMotion(
-						request.SmplxBakeSource,
+						DhmgsPackageDefaults.LoadNeutralSmplx(),
 						imported.Motion,
 						diagnostics);
 					if (HasErrors(diagnostics))
@@ -171,8 +169,6 @@ namespace Mnnh.Dhmgs.Editor
 					new DhmgsAssetWriteOptions
 					{
 						OutputRoot = request.OutputRoot,
-						GenericRig = request.SmplxBakeSource,
-						HumanoidRig = request.SmplxBakeSource,
 						BakeGenericClip = (request.BakeOutputs & DhmgsBakeOutputs.Generic) != 0,
 						BakeHumanoidClips = (request.BakeOutputs & DhmgsBakeOutputs.Humanoid) != 0,
 						CancellationToken = cancellationToken,

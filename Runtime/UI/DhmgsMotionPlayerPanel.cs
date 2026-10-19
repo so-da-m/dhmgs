@@ -7,6 +7,7 @@ using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs
 {
+	[DefaultExecutionOrder(-1000)]
 	public sealed class DhmgsMotionPlayerPanel : MonoBehaviour
 	{
 		[SerializeField] private DhmgsMotionAsset _motion;
@@ -21,6 +22,8 @@ namespace Mnnh.Dhmgs
 		[SerializeField] private Slider _avatarOpacity;
 		[SerializeField] private Slider _clothesOpacity;
 		[SerializeField] private Slider _speed;
+
+		private DhmgsRealtimeClock _clock;
 
 		public DhmgsMotionAsset Motion
 		{
@@ -63,6 +66,7 @@ namespace Mnnh.Dhmgs
 
 		private void OnDisable()
 		{
+			Stop();
 			if (_playButton != null)
 			{
 				_playButton.onClick.RemoveListener(Play);
@@ -101,16 +105,38 @@ namespace Mnnh.Dhmgs
 				return;
 			}
 
-			_player.Play(_motion, new DhmgsRealtimeClock(_loop));
+			Stop();
+			_clock = new DhmgsRealtimeClock(_loop);
+			_clock.Begin(_motion.frameCount, _motion.fps);
+			_player.Play(_motion, _clock);
 			if (_speed != null)
 			{
-				_player.SetPlaybackSpeed(_speed.value);
+				_clock.SetSpeed(_speed.value);
 			}
 		}
 
 		public void Stop()
 		{
-			_player?.Stop();
+			if (_clock != null && _player != null && ReferenceEquals(_player.Clock, _clock))
+			{
+				_player.Stop();
+			}
+			_clock?.Dispose();
+			_clock = null;
+		}
+
+		private void Update()
+		{
+			if (_clock == null)
+			{
+				return;
+			}
+			if (_player == null || !ReferenceEquals(_player.Clock, _clock))
+			{
+				Stop();
+				return;
+			}
+			_clock.Tick();
 		}
 
 		private void BindDropdowns()
@@ -166,7 +192,7 @@ namespace Mnnh.Dhmgs
 
 		private void OnSpeedChanged(float value)
 		{
-			_player?.SetPlaybackSpeed(value);
+			_clock?.SetSpeed(value);
 		}
 
 		private static void ApplyOpacity(DhmgsRigDriver driver, Slider slider)

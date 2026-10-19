@@ -1,30 +1,27 @@
+using System;
 using System.Collections.Generic;
+
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace Mnnh.Dhmgs
 {
-	[DefaultExecutionOrder(10000)]
-	public sealed class DhmgsSkeletonOverlay : MaskableGraphic
+	public sealed class DhmgsSkeletonOverlay : VisualElement
 	{
-		[SerializeField] private Color _boneColor = new Color(0.15f, 0.9f, 1f, 0.95f);
-		[SerializeField] private Color _jointColor = new Color(1f, 0.85f, 0.2f, 1f);
-		[SerializeField, Min(0.5f)] private float _lineWidth = 1.5f;
-		[SerializeField, Min(1f)] private float _jointRadius = 2.5f;
-		[SerializeField] private bool _showNames;
-		[SerializeField] private Font _labelFont;
-		[SerializeField, Min(8)] private int _fontSize = 12;
-		[SerializeField] private Color _labelColor = Color.white;
+		private const float LineWidth = 1.5f;
+		private const float JointRadius = 2.5f;
+		private static readonly Color BoneColor = new Color(1f, 61f / 255f, 200f / 255f, 1f);
+		private static readonly Color JointColor = new Color(1f, 228f / 255f, 92f / 255f, 1f);
 
 		private Camera _camera;
-		private Transform[] _bones = new Transform[0];
-		private int[] _parents = new int[0];
-		private Vector2[] _positions = new Vector2[0];
-		private bool[] _visible = new bool[0];
-		private Text[] _labels = new Text[0];
-		private RectTransform _labelsRoot;
+		private Transform[] _bones = Array.Empty<Transform>();
+		private int[] _parents = Array.Empty<int>();
+		private Vector2[] _positions = Array.Empty<Vector2>();
+		private bool[] _visible = Array.Empty<bool>();
+		private Label[] _labels = Array.Empty<Label>();
 		private Rect _viewport;
 		private bool _hasProjection;
+		private bool _showNames;
 
 		public bool ShowNames
 		{
@@ -40,19 +37,30 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		public Font LabelFont
+		public DhmgsSkeletonOverlay()
 		{
-			get => _labelFont;
-			set
+			pickingMode = PickingMode.Ignore;
+			style.position = Position.Absolute;
+			style.left = 0f;
+			style.top = 0f;
+			style.right = 0f;
+			style.bottom = 0f;
+			style.overflow = Overflow.Hidden;
+			generateVisualContent += Draw;
+			RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+		}
+
+		private void OnGeometryChanged(GeometryChangedEvent evt)
+		{
+			if (evt.target == this)
 			{
-				_labelFont = value;
-				UpdateLabelStyle();
+				Refresh();
 			}
 		}
 
 		public void Bind(Camera camera, IReadOnlyList<Transform> bones)
 		{
-			DestroyLabels();
+			Clear();
 			_camera = camera;
 			_hasProjection = false;
 			Dictionary<Transform, int> indices = new Dictionary<Transform, int>();
@@ -73,7 +81,7 @@ namespace Mnnh.Dhmgs
 			_parents = new int[_bones.Length];
 			_positions = new Vector2[_bones.Length];
 			_visible = new bool[_bones.Length];
-			_labels = new Text[_bones.Length];
+			_labels = new Label[_bones.Length];
 			for (int i = 0; i < _bones.Length; i++)
 			{
 				_parents[i] = -1;
@@ -87,58 +95,34 @@ namespace Mnnh.Dhmgs
 					}
 					ancestor = ancestor.parent;
 				}
+				Label label = new Label(_bones[i].name) { pickingMode = PickingMode.Ignore };
+				label.style.position = Position.Absolute;
+				label.style.fontSize = 12f;
+				label.style.display = DisplayStyle.None;
+				_labels[i] = label;
+				Add(label);
 			}
-			CreateLabels();
-			SetVerticesDirty();
+			Refresh();
 		}
 
-		protected override void Awake()
+		public void Refresh()
 		{
-			base.Awake();
-			raycastTarget = false;
-		}
-
-		protected override void OnEnable()
-		{
-			base.OnEnable();
-			raycastTarget = false;
-			_hasProjection = false;
-			UpdateLabels();
-		}
-
-		protected override void OnDisable()
-		{
-			_hasProjection = false;
-			UpdateLabels();
-			base.OnDisable();
-		}
-
-		protected override void OnDestroy()
-		{
-			DestroyLabels();
-			base.OnDestroy();
-		}
-
-		private void LateUpdate()
-		{
-			if (_camera == null || !_camera.isActiveAndEnabled || _bones.Length == 0)
+			Rect rect = contentRect;
+			_hasProjection = _camera != null && _camera.isActiveAndEnabled && _bones.Length > 0 &&
+				rect.width > 0f && rect.height > 0f;
+			if (!_hasProjection)
 			{
-				if (_hasProjection)
-				{
-					_hasProjection = false;
-					SetVerticesDirty();
-				}
 				UpdateLabels();
+				MarkDirtyRepaint();
 				return;
 			}
 
-			Rect rect = rectTransform.rect;
 			Rect cameraRect = _camera.rect;
 			_viewport = Rect.MinMaxRect(
 				rect.xMin + Mathf.Clamp01(cameraRect.xMin) * rect.width,
-				rect.yMin + Mathf.Clamp01(cameraRect.yMin) * rect.height,
+				rect.yMin + (1f - Mathf.Clamp01(cameraRect.yMax)) * rect.height,
 				rect.xMin + Mathf.Clamp01(cameraRect.xMax) * rect.width,
-				rect.yMin + Mathf.Clamp01(cameraRect.yMax) * rect.height);
+				rect.yMin + (1f - Mathf.Clamp01(cameraRect.yMin)) * rect.height);
 			for (int i = 0; i < _bones.Length; i++)
 			{
 				_visible[i] = false;
@@ -155,26 +139,26 @@ namespace Mnnh.Dhmgs
 				}
 				_positions[i] = new Vector2(
 					rect.xMin + (cameraRect.x + projected.x * cameraRect.width) * rect.width,
-					rect.yMin + (cameraRect.y + projected.y * cameraRect.height) * rect.height);
+					rect.yMin + (1f - cameraRect.y - projected.y * cameraRect.height) * rect.height);
 				_visible[i] = true;
 			}
 			_hasProjection = _viewport.width > 0f && _viewport.height > 0f;
 			UpdateLabels();
-			SetVerticesDirty();
+			MarkDirtyRepaint();
 		}
 
-		protected override void OnPopulateMesh(VertexHelper vertices)
+		private void Draw(MeshGenerationContext context)
 		{
-			vertices.Clear();
 			if (!_hasProjection)
 			{
 				return;
 			}
-			float halfWidth = Mathf.Max(0.5f, _lineWidth) * 0.5f;
+			Painter2D painter = context.painter2D;
+			painter.lineWidth = LineWidth;
+			painter.strokeColor = BoneColor;
+			float halfWidth = LineWidth * 0.5f;
 			Rect lineRect = Rect.MinMaxRect(_viewport.xMin + halfWidth, _viewport.yMin + halfWidth,
 				_viewport.xMax - halfWidth, _viewport.yMax - halfWidth);
-			Color32 boneColor = _boneColor * color;
-			Color32 jointColor = _jointColor * color;
 			for (int i = 0; i < _bones.Length; i++)
 			{
 				int parent = _parents[i];
@@ -184,19 +168,16 @@ namespace Mnnh.Dhmgs
 				}
 				Vector2 start = _positions[parent];
 				Vector2 end = _positions[i];
-				if (!ClipLine(ref start, ref end, lineRect))
+				if (!ClipLine(ref start, ref end, lineRect) || (end - start).sqrMagnitude < 0.0001f)
 				{
 					continue;
 				}
-				Vector2 delta = end - start;
-				if (delta.sqrMagnitude < 0.0001f)
-				{
-					continue;
-				}
-				Vector2 normal = new Vector2(-delta.y, delta.x).normalized * halfWidth;
-				AddQuad(vertices, start - normal, start + normal, end + normal, end - normal, boneColor);
+				painter.BeginPath();
+				painter.MoveTo(start);
+				painter.LineTo(end);
+				painter.Stroke();
 			}
-			float radius = Mathf.Max(1f, _jointRadius);
+			painter.fillColor = JointColor;
 			for (int i = 0; i < _bones.Length; i++)
 			{
 				if (!_visible[i])
@@ -204,135 +185,40 @@ namespace Mnnh.Dhmgs
 					continue;
 				}
 				Vector2 point = _positions[i];
-				float left = Mathf.Max(_viewport.xMin, point.x - radius);
-				float right = Mathf.Min(_viewport.xMax, point.x + radius);
-				float bottom = Mathf.Max(_viewport.yMin, point.y - radius);
-				float top = Mathf.Min(_viewport.yMax, point.y + radius);
-				if (right > left && top > bottom)
-				{
-					AddQuad(vertices, new Vector2(left, bottom), new Vector2(left, top),
-						new Vector2(right, top), new Vector2(right, bottom), jointColor);
-				}
-			}
-		}
-
-		private void CreateLabels()
-		{
-			if (_bones.Length == 0)
-			{
-				return;
-			}
-			GameObject root = new GameObject("SkeletonLabels", typeof(RectTransform), typeof(RectMask2D));
-			root.layer = gameObject.layer;
-			root.SetActive(false);
-			_labelsRoot = (RectTransform)root.transform;
-			_labelsRoot.SetParent(rectTransform, false);
-			_labelsRoot.anchorMin = Vector2.zero;
-			_labelsRoot.anchorMax = Vector2.one;
-			_labelsRoot.offsetMin = Vector2.zero;
-			_labelsRoot.offsetMax = Vector2.zero;
-			for (int i = 0; i < _bones.Length; i++)
-			{
-				GameObject labelObject = new GameObject("BoneName", typeof(RectTransform), typeof(Text));
-				labelObject.layer = gameObject.layer;
-				labelObject.transform.SetParent(_labelsRoot, false);
-				Text label = labelObject.GetComponent<Text>();
-				label.raycastTarget = false;
-				label.supportRichText = false;
-				label.alignment = TextAnchor.MiddleLeft;
-				label.horizontalOverflow = HorizontalWrapMode.Overflow;
-				label.verticalOverflow = VerticalWrapMode.Overflow;
-				label.text = _bones[i].name;
-				label.rectTransform.anchorMin = Vector2.zero;
-				label.rectTransform.anchorMax = Vector2.zero;
-				label.rectTransform.pivot = Vector2.zero;
-				_labels[i] = label;
-			}
-			UpdateLabelStyle();
-		}
-
-		private void UpdateLabelStyle()
-		{
-			if (_labelFont == null && _labels.Length > 0)
-			{
-				_labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-			}
-			for (int i = 0; i < _labels.Length; i++)
-			{
-				Text label = _labels[i];
-				if (label == null)
+				float left = Mathf.Max(_viewport.xMin, point.x - JointRadius);
+				float right = Mathf.Min(_viewport.xMax, point.x + JointRadius);
+				float top = Mathf.Max(_viewport.yMin, point.y - JointRadius);
+				float bottom = Mathf.Min(_viewport.yMax, point.y + JointRadius);
+				if (right <= left || bottom <= top)
 				{
 					continue;
 				}
-				label.font = _labelFont;
-				label.fontSize = Mathf.Max(8, _fontSize);
-				label.color = _labelColor;
-				label.rectTransform.sizeDelta = new Vector2(Mathf.Ceil(label.preferredWidth) + 2f, label.fontSize + 4f);
+				painter.BeginPath();
+				painter.MoveTo(new Vector2(left, top));
+				painter.LineTo(new Vector2(right, top));
+				painter.LineTo(new Vector2(right, bottom));
+				painter.LineTo(new Vector2(left, bottom));
+				painter.ClosePath();
+				painter.Fill();
 			}
 		}
 
 		private void UpdateLabels()
 		{
-			if (_labelsRoot == null)
-			{
-				return;
-			}
-			bool active = isActiveAndEnabled && _hasProjection && _showNames;
-			if (_labelsRoot.gameObject.activeSelf != active)
-			{
-				_labelsRoot.gameObject.SetActive(active);
-			}
-			if (!active)
-			{
-				return;
-			}
-			Vector2 origin = rectTransform.rect.min;
 			for (int i = 0; i < _labels.Length; i++)
 			{
-				Text label = _labels[i];
-				Vector2 size = label.rectTransform.sizeDelta;
-				bool visible = _visible[i] && _viewport.Contains(_positions[i]) &&
-					size.x <= _viewport.width && size.y <= _viewport.height;
-				label.enabled = visible;
+				Label label = _labels[i];
+				bool visible = _showNames && _hasProjection && _visible[i] && _viewport.Contains(_positions[i]);
+				label.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 				if (!visible)
 				{
 					continue;
 				}
+				Vector2 size = label.MeasureTextSize(label.text, 0f, MeasureMode.Undefined, 0f, MeasureMode.Undefined);
 				Vector2 point = _positions[i];
-				point.x = Mathf.Clamp(point.x + 6f, _viewport.xMin, Mathf.Max(_viewport.xMin, _viewport.xMax - size.x));
-				point.y = Mathf.Clamp(point.y + 4f, _viewport.yMin, Mathf.Max(_viewport.yMin, _viewport.yMax - size.y));
-				label.rectTransform.anchoredPosition = point - origin;
+				label.style.left = Mathf.Clamp(point.x + 6f, _viewport.xMin, Mathf.Max(_viewport.xMin, _viewport.xMax - size.x));
+				label.style.top = Mathf.Clamp(point.y - size.y - 4f, _viewport.yMin, Mathf.Max(_viewport.yMin, _viewport.yMax - size.y));
 			}
-		}
-
-		private void DestroyLabels()
-		{
-			if (_labelsRoot == null)
-			{
-				return;
-			}
-			GameObject root = _labelsRoot.gameObject;
-			_labelsRoot = null;
-			root.SetActive(false);
-			if (Application.isPlaying)
-			{
-				Destroy(root);
-			}
-			else
-			{
-				DestroyImmediate(root);
-			}
-		}
-
-		private static void AddQuad(VertexHelper vertices, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color32 tint)
-		{
-			int first = vertices.currentVertCount;
-			vertices.AddVert(a, tint, Vector2.zero);
-			vertices.AddVert(b, tint, Vector2.zero);
-			vertices.AddVert(c, tint, Vector2.zero);
-			vertices.AddVert(d, tint, Vector2.zero);
-			vertices.AddTriangle(first, first + 1, first + 2);
-			vertices.AddTriangle(first + 2, first + 3, first);
 		}
 
 		private static bool ClipLine(ref Vector2 start, ref Vector2 end, Rect rect)

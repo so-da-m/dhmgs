@@ -54,7 +54,7 @@ namespace Mnnh.Dhmgs.Editor
 			if (model == null)
 			{
 				diagnostics.Add(Error("bake.source.missing",
-					"A SMPL-X bake source is required for the selected clip outputs."));
+					"The bundled Neutral SMPL-X bake source could not be found."));
 				return;
 			}
 
@@ -155,12 +155,12 @@ namespace Mnnh.Dhmgs.Editor
 			if (missing.Count > 0)
 			{
 				diagnostics.Add(Error("bake.source.bones-missing",
-					$"The selected model is not a compatible SMPL-X bake source. Missing {missing.Count} required transform(s): {Preview(missing)}"));
+					$"The bundled Neutral SMPL-X bake source is missing {missing.Count} required transform(s): {Preview(missing)}"));
 			}
 			if (duplicates.Count > 0)
 			{
 				diagnostics.Add(Error("bake.source.bones-duplicate",
-					$"The selected model has duplicate required transform names: {Preview(duplicates)}"));
+					$"The bundled Neutral SMPL-X bake source has duplicate required transform names: {Preview(duplicates)}"));
 			}
 		}
 

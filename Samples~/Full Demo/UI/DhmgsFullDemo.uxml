@@ -1,0 +1,76 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="DhmgsFullDemo.uss" />
+    <ui:VisualElement name="demo" class="demo">
+        <ui:VisualElement class="panel import-panel">
+            <ui:VisualElement class="row import-toolbar">
+                <ui:IntegerField name="attempt-id" label="Attempt ID" value="0" is-delayed="true" class="attempt" />
+                <ui:Button name="fetch" text="Fetch" class="primary" />
+                <ui:Button name="cancel-fetch" text="Cancel" />
+                <ui:Label name="server" class="server grow" />
+            </ui:VisualElement>
+            <ui:ProgressBar name="import-progress" low-value="0" high-value="100" />
+            <ui:Label name="operation-status" class="status" />
+        </ui:VisualElement>
+        <ui:VisualElement class="workspace">
+            <ui:VisualElement class="previews">
+                <ui:VisualElement class="panel preview-column">
+                    <ui:VisualElement class="preview-header">
+                        <ui:VisualElement class="row">
+                            <ui:Label text="SMPL-X" class="section-title grow" />
+                            <ui:Button name="reset-main" text="Reset camera" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="row preview-options">
+                            <ui:Toggle name="main-bones" label="Bones" />
+                            <ui:Toggle name="main-names" label="Names" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement name="main-viewport" class="viewport" tooltip="Drag: orbit. Right or middle drag: pan. Scroll: zoom." />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel preview-column last-preview">
+                    <ui:VisualElement class="preview-header">
+                        <ui:VisualElement class="row">
+                            <ui:Label text="Humanoid" class="section-title grow" />
+                            <ui:Button name="reset-humanoid" text="Reset camera" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="row preview-options">
+                            <ui:Toggle name="humanoid-bones" label="Bones" />
+                            <ui:Toggle name="humanoid-names" label="Names" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement name="humanoid-viewport" class="viewport" tooltip="Drag: orbit. Right or middle drag: pan. Scroll: zoom." />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="sidebar">
+                <ui:VisualElement class="panel settings-panel">
+                    <ui:Label text="View settings" class="section-title panel-title" />
+                    <ui:ScrollView class="settings-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden">
+                        <ui:DropdownField name="avatar" label="SMPL-X rig" class="setting-field" />
+                        <ui:Slider name="avatar-opacity" label="Avatar opacity" low-value="0" high-value="1" value="1" show-input-field="true" class="setting-field" />
+                        <ui:DropdownField name="clothes" label="SMPL-X clothes" class="setting-field" />
+                        <ui:Slider name="clothes-opacity" label="Clothes opacity" low-value="0" high-value="1" value="1" show-input-field="true" class="setting-field" />
+                        <ui:Slider name="video-opacity" label="Video opacity" low-value="0" high-value="1" value="1" show-input-field="true" class="setting-field" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+                <ui:VisualElement class="panel log-panel">
+                    <ui:Label text="Log" class="section-title panel-title" />
+                    <ui:ScrollView class="log-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden">
+                        <ui:Label name="log" class="log" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="panel playback-panel">
+            <ui:VisualElement class="row transport">
+                <ui:Button name="play" text="Play" class="primary" />
+                <ui:Button name="pause" text="Pause" />
+                <ui:Button name="stop" text="Stop" />
+                <ui:FloatField name="speed" label="Speed" value="1" is-delayed="true" class="speed" />
+                <ui:Label name="playback-status" class="status grow" />
+            </ui:VisualElement>
+            <ui:VisualElement class="row timeline">
+                <ui:SliderInt name="frame" label="Frame" low-value="1" high-value="1" value="1" class="grow" />
+                <ui:Label name="frame-value" text="0 / 0" class="frame-value" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Mnnh.Dhmgs
 {
@@ -7,10 +6,10 @@ namespace Mnnh.Dhmgs
 	{
 		private Camera _camera;
 		private RenderTexture _renderTexture;
-		private RawImage _output;
 		private Color _background;
 
 		public Camera Camera => _camera;
+		public RenderTexture Texture => _renderTexture;
 		public Transform CameraTransform => _camera != null ? _camera.transform : null;
 		public bool IsValid => _camera != null;
 
@@ -22,14 +21,13 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		public void Create(string name, RawImage output, int width, int height, LayerMask cullingMask,
+		public void Create(string name, int width, int height, LayerMask cullingMask,
 			float fieldOfView, float nearClip, float farClip, Color background)
 		{
 			if (_camera != null)
 			{
 				return;
 			}
-			_output = output;
 			_background = background;
 
 			_renderTexture = new RenderTexture(Mathf.Max(1, width), Mathf.Max(1, height), 24);
@@ -46,10 +44,6 @@ namespace Mnnh.Dhmgs
 			_camera.cullingMask = cullingMask;
 			_camera.targetTexture = _renderTexture;
 
-			if (_output != null)
-			{
-				_output.texture = _renderTexture;
-			}
 			Clear();
 		}
 
@@ -68,19 +62,13 @@ namespace Mnnh.Dhmgs
 
 		public void Destroy()
 		{
-			RawImage output = _output;
 			Camera camera = _camera;
 			RenderTexture renderTexture = _renderTexture;
 
-			_output = null;
 			_camera = null;
 			_renderTexture = null;
 			_background = default;
 
-			if (output != null && renderTexture != null && output.texture == renderTexture)
-			{
-				output.texture = null;
-			}
 			if (camera != null)
 			{
 				camera.enabled = false;

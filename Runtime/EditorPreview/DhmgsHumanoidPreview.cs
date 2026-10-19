@@ -15,7 +15,7 @@ namespace Mnnh.Dhmgs
 		private AnimationClipPlayable _clipPlayable;
 		private bool _graphValid;
 		private IDhmgsPlaybackClock _source;
-		private float _fps = 30f;
+		private double _clipDuration;
 
 		public Transform Pivot => _source != null && _instance != null
 			? (_pivot != null ? _pivot : _instance.transform)
@@ -35,7 +35,6 @@ namespace Mnnh.Dhmgs
 			GameObject avatarPrefab,
 			AnimationClip clip,
 			IDhmgsPlaybackClock source,
-			float fps,
 			Vector3 isolationPosition)
 		{
 			Clear();
@@ -77,9 +76,9 @@ namespace Mnnh.Dhmgs
 				}
 
 				_source = source;
-				_fps = fps > 0f ? fps : 30f;
+				_clipDuration = clip.length;
 				BuildGraph(clip);
-				EvaluateCurrentFrame();
+				EvaluateCurrentTime();
 				return true;
 			}
 			catch
@@ -96,16 +95,16 @@ namespace Mnnh.Dhmgs
 
 		private void Update()
 		{
-			EvaluateCurrentFrame();
+			EvaluateCurrentTime();
 		}
 
-		private void EvaluateCurrentFrame()
+		private void EvaluateCurrentTime()
 		{
 			if (_source == null || !_graphValid)
 			{
 				return;
 			}
-			_clipPlayable.SetTime(_source.CurrentFrame / _fps);
+			_clipPlayable.SetTime(System.Math.Max(0d, System.Math.Min(_source.CurrentTime, _clipDuration)));
 			_graph.Evaluate(0f);
 		}
 

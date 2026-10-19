@@ -46,6 +46,51 @@ namespace Mnnh.Dhmgs
 			ApplyPoseFrame(asset, frame);
 		}
 
+		public void ApplyTime(DhmgsMotionAsset asset, double timeSeconds)
+		{
+			if (asset == null || !asset.IsValid)
+			{
+				return;
+			}
+			if (double.IsNaN(timeSeconds) || double.IsInfinity(timeSeconds))
+			{
+				timeSeconds = 0d;
+			}
+			float fps = asset.fps > 0f && !float.IsInfinity(asset.fps) ? asset.fps : 30f;
+			double samplePosition = System.Math.Max(
+				0d, System.Math.Min(timeSeconds * fps, asset.frameCount - 1d));
+			int frame = (int)samplePosition;
+			int nextFrame = Mathf.Min(frame + 1, asset.frameCount - 1);
+			float blend = (float)(samplePosition - frame);
+			if (blend <= 0f || frame == nextFrame)
+			{
+				ApplyFrame(asset, frame);
+				return;
+			}
+
+			EnsureBound();
+			ApplyCameraPlacement(Vector3.Lerp(
+				asset.pelvisPositions[frame], asset.pelvisPositions[nextFrame], blend));
+			if (_pelvis != null)
+			{
+				_pelvis.localRotation = Quaternion.Slerp(
+					asset.pelvisRotations[frame], asset.pelvisRotations[nextFrame], blend);
+			}
+
+			int baseIndex = frame * asset.boneCount;
+			int nextBaseIndex = nextFrame * asset.boneCount;
+			for (int boneIndex = 0; boneIndex < asset.boneCount; boneIndex++)
+			{
+				if (_bones.TryGetValue(asset.boneNames[boneIndex], out Transform bone))
+				{
+					bone.localRotation = Quaternion.Slerp(
+						asset.boneRotations[baseIndex + boneIndex],
+						asset.boneRotations[nextBaseIndex + boneIndex],
+						blend);
+				}
+			}
+		}
+
 		public void ApplyPose(DhmgsMotionAsset asset, int frameIndex)
 		{
 			if (asset == null || !asset.IsValid)
@@ -59,10 +104,15 @@ namespace Mnnh.Dhmgs
 
 		private void ApplyCameraPlacement(DhmgsMotionAsset asset, int frame)
 		{
+			ApplyCameraPlacement(asset.pelvisPositions[frame]);
+		}
+
+		private void ApplyCameraPlacement(Vector3 pelvisPosition)
+		{
 			if (_root != null)
 			{
 				Camera cam = _camera;
-				Vector3 pelvisCameraLocal = asset.pelvisPositions[frame] - _pelvisRestOffset;
+				Vector3 pelvisCameraLocal = pelvisPosition - _pelvisRestOffset;
 				if (cam != null)
 				{
 					_root.rotation = cam.transform.rotation;

@@ -92,7 +92,6 @@ namespace Mnnh.Dhmgs.Editor
 			string baseUrl,
 			int attemptId,
 			string outputRoot,
-			GameObject smplxBakeSource,
 			DhmgsBakeOutputs bakeOutputs,
 			DhmgsVideoPolicy videoPolicy = DhmgsVideoPolicy.CacheIfPresent,
 			int timeoutSeconds = DhmgsImportService.DefaultTimeoutSeconds)
@@ -102,7 +101,6 @@ namespace Mnnh.Dhmgs.Editor
 			AttemptId = attemptId;
 			SourceId = attemptId.ToString(CultureInfo.InvariantCulture);
 			OutputRoot = outputRoot;
-			SmplxBakeSource = smplxBakeSource;
 			BakeOutputs = bakeOutputs;
 			VideoPolicy = videoPolicy;
 			TimeoutSeconds = timeoutSeconds;
@@ -112,7 +110,6 @@ namespace Mnnh.Dhmgs.Editor
 			string sourceId,
 			byte[] archiveBytes,
 			string outputRoot,
-			GameObject smplxBakeSource,
 			DhmgsBakeOutputs bakeOutputs,
 			DhmgsVideoPolicy videoPolicy = DhmgsVideoPolicy.CacheIfPresent)
 		{
@@ -128,7 +125,6 @@ namespace Mnnh.Dhmgs.Editor
 			BaseUrl = string.Empty;
 			AttemptId = -1;
 			OutputRoot = outputRoot;
-			SmplxBakeSource = smplxBakeSource;
 			BakeOutputs = bakeOutputs;
 			VideoPolicy = videoPolicy;
 			TimeoutSeconds = DhmgsImportService.DefaultTimeoutSeconds;
@@ -138,7 +134,6 @@ namespace Mnnh.Dhmgs.Editor
 		public int AttemptId { get; }
 		public string SourceId { get; }
 		public string OutputRoot { get; }
-		public GameObject SmplxBakeSource { get; }
 		public DhmgsBakeOutputs BakeOutputs { get; }
 		public DhmgsVideoPolicy VideoPolicy { get; }
 		public int TimeoutSeconds { get; }
