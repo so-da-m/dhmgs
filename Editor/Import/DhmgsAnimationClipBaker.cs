@@ -326,8 +326,19 @@ namespace Mnnh.Dhmgs.Editor
 				onProgress?.Invoke(frameCount > 0 ? (float)frameIndex / frameCount * 0.72f : 0.72f);
 			}
 
+			DhmgsCurveTangents.ApplyLinear(inPlacePositionX, frameDuration, cancellationToken);
+			DhmgsCurveTangents.ApplyLinear(inPlacePositionY, frameDuration, cancellationToken);
+			DhmgsCurveTangents.ApplyLinear(inPlacePositionZ, frameDuration, cancellationToken);
+			DhmgsCurveTangents.ApplyLinear(rootMotionPositionX, frameDuration, cancellationToken);
+			DhmgsCurveTangents.ApplyLinear(rootMotionPositionY, frameDuration, cancellationToken);
+			DhmgsCurveTangents.ApplyLinear(rootMotionPositionZ, frameDuration, cancellationToken);
+			for (int muscleIndex = 0; muscleIndex < muscleKeyframes.Length; muscleIndex++)
+			{
+				DhmgsCurveTangents.ApplyLinear(muscleKeyframes[muscleIndex], frameDuration, cancellationToken);
+			}
+
 			Keyframe[][] rootRotationKeys = DhmgsQuaternionCurves.CreateKeys(
-				rootRotations, asset.fps, false, cancellationToken);
+				rootRotations, asset.fps, true, cancellationToken);
 			AnimationClip inPlaceClip = null;
 			AnimationClip rootMotionClip = null;
 			try
