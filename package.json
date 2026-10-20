@@ -2,7 +2,7 @@
   "name": "com.mnnh.dhmgs",
   "version": "0.7.2",
   "displayName": "MNNH DHMGS",
-  "description": "Editor-only DHMGS import, SMPL-X avatar registration, Generic/Humanoid baking, and retarget preview with build-safe playback.",
+  "description": "DHMGS 서버의 ExAvatar 모션을 가져와 Unity Humanoid 애니메이션 클립으로 변환합니다.",
   "unity": "6000.0",
   "license": "See LICENSE.md file",
   "author": {
@@ -26,7 +26,7 @@
   "samples": [
     {
       "displayName": "Full Demo",
-      "description": "Compare direct SMPL-X motion with a baked Unity Humanoid clip retargeted to the included Y Bot.",
+      "description": "SMPL-X 원본 모션과 베이크된 Humanoid 클립의 재생을 나란히 비교합니다.",
       "path": "Samples~/Full Demo"
     }
   ]
