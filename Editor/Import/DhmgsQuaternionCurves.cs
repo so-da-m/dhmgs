@@ -41,20 +41,7 @@ namespace Mnnh.Dhmgs.Editor
 			{
 				foreach (Keyframe[] componentKeys in keys)
 				{
-					for (int frameIndex = 0; frameIndex < componentKeys.Length; frameIndex++)
-					{
-						cancellationToken.ThrowIfCancellationRequested();
-						Keyframe key = componentKeys[frameIndex];
-						key.inTangent = frameIndex > 0
-							? (key.value - componentKeys[frameIndex - 1].value) / frameDuration
-							: frameIndex + 1 < componentKeys.Length
-								? (componentKeys[frameIndex + 1].value - key.value) / frameDuration
-								: 0f;
-						key.outTangent = frameIndex + 1 < componentKeys.Length
-							? (componentKeys[frameIndex + 1].value - key.value) / frameDuration
-							: key.inTangent;
-						componentKeys[frameIndex] = key;
-					}
+					DhmgsCurveTangents.ApplyLinear(componentKeys, frameDuration, cancellationToken);
 				}
 			}
 			return keys;
