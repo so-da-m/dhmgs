@@ -70,6 +70,10 @@ namespace Mnnh.Dhmgs.Editor
 				{
 					return new DhmgsHumanoidBakeArtifacts { Error = error };
 				}
+				if (!TryMeasureRestSolePlaneY(instance, out float restSolePlaneY, out error))
+				{
+					return new DhmgsHumanoidBakeArtifacts { Error = error };
+				}
 
 				cancellationToken.ThrowIfCancellationRequested();
 				HumanoidSamples samples = await SampleHumanoidAsync(
@@ -77,6 +81,7 @@ namespace Mnnh.Dhmgs.Editor
 					player,
 					animator,
 					avatar,
+					-restSolePlaneY,
 					onProgress,
 					cancellationToken);
 				return await CreateVariantClipsAsync(samples, onProgress, cancellationToken);
@@ -179,11 +184,41 @@ namespace Mnnh.Dhmgs.Editor
 			return animator;
 		}
 
+		private static bool TryMeasureRestSolePlaneY(GameObject instance, out float solePlaneY, out string error)
+		{
+			error = null;
+			solePlaneY = float.PositiveInfinity;
+			Mesh bakedMesh = new Mesh();
+			try
+			{
+				foreach (SkinnedMeshRenderer renderer in instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+				{
+					renderer.BakeMesh(bakedMesh);
+					Matrix4x4 localToWorld = renderer.transform.localToWorldMatrix;
+					foreach (Vector3 vertex in bakedMesh.vertices)
+					{
+						solePlaneY = Mathf.Min(solePlaneY, localToWorld.MultiplyPoint3x4(vertex).y);
+					}
+				}
+			}
+			finally
+			{
+				UnityEngine.Object.DestroyImmediate(bakedMesh);
+			}
+			if (float.IsInfinity(solePlaneY))
+			{
+				error = "베이크 소스에서 발바닥 높이를 측정할 스킨드 메시를 찾을 수 없음";
+				return false;
+			}
+			return true;
+		}
+
 		private static async Task<HumanoidSamples> SampleHumanoidAsync(
 			DhmgsMotionAsset asset,
 			DhmgsRigDriver player,
 			Animator animator,
 			Avatar avatar,
+			float groundOffsetY,
 			Action<float> onProgress,
 			CancellationToken cancellationToken)
 		{
@@ -225,7 +260,7 @@ namespace Mnnh.Dhmgs.Editor
 				float time = frameIndex * frameDuration;
 				Vector3 relativePelvisPosition = asset.pelvisPositions[frameIndex] - firstPelvisPosition;
 
-				root.position = new Vector3(0f, relativePelvisPosition.y, 0f);
+				root.position = new Vector3(0f, groundOffsetY + relativePelvisPosition.y, 0f);
 				root.rotation = Quaternion.identity;
 				player.ApplyPose(asset, frameIndex);
 				poseHandler.GetHumanPose(ref humanPose);
@@ -240,7 +275,7 @@ namespace Mnnh.Dhmgs.Editor
 					samples.Muscles[muscleIndex][frameIndex] = new Keyframe(time, humanPose.muscles[muscleIndex]);
 				}
 
-				root.position = relativePelvisPosition;
+				root.position = relativePelvisPosition + Vector3.up * groundOffsetY;
 				poseHandler.GetHumanPose(ref humanPose);
 				bodyPosition = humanPose.bodyPosition;
 				samples.RootMotionPositionX[frameIndex] = new Keyframe(time, bodyPosition.x);
