@@ -10,7 +10,6 @@ namespace Mnnh.Dhmgs.Editor
 		[SerializeField] private string _baseUrl = DhmgsImportService.DefaultBaseUrl;
 		[SerializeField] private string _outputRoot = DhmgsImportService.DefaultOutputRoot;
 		[SerializeField] private string _attemptIdText = string.Empty;
-		[SerializeField] private bool _bakeGeneric = true;
 		[SerializeField] private bool _bakeHumanoid = true;
 		[SerializeField] private bool _cachePreviewVideo = true;
 
@@ -23,7 +22,6 @@ namespace Mnnh.Dhmgs.Editor
 			: _outputRoot;
 
 		internal string AttemptIdText => _attemptIdText ?? string.Empty;
-		internal bool BakeGeneric => _bakeGeneric;
 		internal bool BakeHumanoid => _bakeHumanoid;
 		internal bool CachePreviewVideo => _cachePreviewVideo;
 
@@ -31,14 +29,12 @@ namespace Mnnh.Dhmgs.Editor
 			string baseUrl,
 			string outputRoot,
 			string attemptIdText,
-			bool bakeGeneric,
 			bool bakeHumanoid,
 			bool cachePreviewVideo)
 		{
 			_baseUrl = baseUrl ?? string.Empty;
 			_outputRoot = outputRoot ?? string.Empty;
 			_attemptIdText = attemptIdText ?? string.Empty;
-			_bakeGeneric = bakeGeneric;
 			_bakeHumanoid = bakeHumanoid;
 			_cachePreviewVideo = cachePreviewVideo;
 			Save(true);

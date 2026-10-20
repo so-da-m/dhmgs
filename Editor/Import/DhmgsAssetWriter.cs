@@ -15,7 +15,6 @@ namespace Mnnh.Dhmgs.Editor
 	internal sealed class DhmgsAssetWriteOptions
 	{
 		public string OutputRoot { get; set; } = DhmgsAssetWriter.DefaultOutputRoot;
-		public bool BakeGenericClip { get; set; } = true;
 		public bool BakeHumanoidClips { get; set; } = true;
 		public CancellationToken CancellationToken { get; set; } = default;
 	}
@@ -24,7 +23,6 @@ namespace Mnnh.Dhmgs.Editor
 	{
 		public DhmgsMotionAsset Motion { get; internal set; }
 		public string MotionAssetPath { get; internal set; }
-		public AnimationClip GenericClip { get; internal set; }
 		public AnimationClip HumanoidInPlaceClip { get; internal set; }
 		public AnimationClip HumanoidRootMotionClip { get; internal set; }
 		public string Summary { get; internal set; }
@@ -36,7 +34,6 @@ namespace Mnnh.Dhmgs.Editor
 		private readonly DhmgsImportResult _import;
 		private readonly string _outputRoot;
 		private readonly string _assetId;
-		private readonly bool _publishGeneric;
 		private readonly bool _publishHumanoid;
 		private bool _published;
 		private bool _disposed;
@@ -45,23 +42,18 @@ namespace Mnnh.Dhmgs.Editor
 			DhmgsImportResult import,
 			string outputRoot,
 			string assetId,
-			AnimationClip genericClip,
 			AnimationClip humanoidInPlaceClip,
 			AnimationClip humanoidRootMotionClip,
-			bool publishGeneric,
 			bool publishHumanoid)
 		{
 			_import = import;
 			_outputRoot = outputRoot;
 			_assetId = assetId;
-			GenericClip = genericClip;
 			HumanoidInPlaceClip = humanoidInPlaceClip;
 			HumanoidRootMotionClip = humanoidRootMotionClip;
-			_publishGeneric = publishGeneric;
 			_publishHumanoid = publishHumanoid;
 		}
 
-		internal AnimationClip GenericClip { get; private set; }
 		internal AnimationClip HumanoidInPlaceClip { get; private set; }
 		internal AnimationClip HumanoidRootMotionClip { get; private set; }
 
@@ -80,13 +72,10 @@ namespace Mnnh.Dhmgs.Editor
 				_import,
 				_outputRoot,
 				_assetId,
-				GenericClip,
 				HumanoidInPlaceClip,
 				HumanoidRootMotionClip,
-				_publishGeneric,
 				_publishHumanoid);
 			_published = true;
-			GenericClip = result.GenericClip;
 			HumanoidInPlaceClip = result.HumanoidInPlaceClip;
 			HumanoidRootMotionClip = result.HumanoidRootMotionClip;
 			return result;
@@ -101,7 +90,6 @@ namespace Mnnh.Dhmgs.Editor
 			_disposed = true;
 			if (!_published)
 			{
-				DhmgsAssetWriter.DestroyTransientClip(GenericClip);
 				DhmgsAssetWriter.DestroyTransientClip(HumanoidInPlaceClip);
 				DhmgsAssetWriter.DestroyTransientClip(HumanoidRootMotionClip);
 			}
@@ -192,28 +180,10 @@ namespace Mnnh.Dhmgs.Editor
 			string outputRoot = ValidateOutputRoot(options.OutputRoot);
 			string assetId = CreateAssetId(import);
 
-			AnimationClip genericClip = null;
 			AnimationClip humanoidInPlaceClip = null;
 			AnimationClip humanoidRootMotionClip = null;
 			try
 			{
-				if (options.BakeGenericClip)
-				{
-					onProgress?.Invoke(DhmgsImportJobStage.BakingGeneric, 0f, "Baking Generic clip", true);
-					genericClip = await DhmgsAnimationClipBaker.BakeGenericAsync(
-						import.Motion,
-						value => onProgress?.Invoke(
-							DhmgsImportJobStage.BakingGeneric,
-							value,
-							"Baking Generic clip",
-							true),
-						cancellationToken);
-					if (genericClip == null)
-					{
-						throw new InvalidOperationException("Generic baking did not produce a clip.");
-					}
-				}
-
 				if (options.BakeHumanoidClips)
 				{
 					onProgress?.Invoke(DhmgsImportJobStage.BakingHumanoid, 0f, "Baking Humanoid clips", true);
@@ -243,15 +213,12 @@ namespace Mnnh.Dhmgs.Editor
 					import,
 					outputRoot,
 					assetId,
-					genericClip,
 					humanoidInPlaceClip,
 					humanoidRootMotionClip,
-					options.BakeGenericClip,
 					options.BakeHumanoidClips);
 			}
 			catch
 			{
-				DestroyTransientClip(genericClip);
 				DestroyTransientClip(humanoidInPlaceClip);
 				DestroyTransientClip(humanoidRootMotionClip);
 				throw;
@@ -262,10 +229,8 @@ namespace Mnnh.Dhmgs.Editor
 			DhmgsImportResult import,
 			string outputRoot,
 			string assetId,
-			AnimationClip preparedGeneric,
 			AnimationClip preparedHumanoidInPlace,
 			AnimationClip preparedHumanoidRootMotion,
-			bool publishGeneric,
 			bool publishHumanoid)
 		{
 			string outputDirectory = $"{outputRoot}/{assetId}";
@@ -275,7 +240,6 @@ namespace Mnnh.Dhmgs.Editor
 			var transactionFolders = new List<string>();
 
 			string motionPath = $"{outputDirectory}/{assetId}.asset";
-			string genericPath = $"{outputDirectory}/{assetId}_generic.anim";
 			string humanoidInPlacePath = $"{outputDirectory}/{assetId}_humanoid_inplace.anim";
 			string humanoidRootMotionPath = $"{outputDirectory}/{assetId}_humanoid_rootmotion.anim";
 
@@ -296,10 +260,6 @@ namespace Mnnh.Dhmgs.Editor
 					transactionDirectory,
 					transactionFolders,
 					removedOutputs);
-				if (!publishGeneric)
-				{
-					StageRemoval(genericPath, transactionDirectory, transactionFolders, removedOutputs);
-				}
 				if (!publishHumanoid)
 				{
 					StageRemoval(
@@ -323,15 +283,6 @@ namespace Mnnh.Dhmgs.Editor
 					createdPaths);
 				import.Motion = motion;
 
-				AnimationClip generic = publishGeneric
-					? PublishNativeAsset(
-						preparedGeneric,
-						genericPath,
-						$"{assetId}_generic",
-						() => new AnimationClip(),
-						backups,
-						createdPaths)
-					: null;
 				AnimationClip humanoidInPlace = publishHumanoid
 					? PublishNativeAsset(
 						preparedHumanoidInPlace,
@@ -352,10 +303,6 @@ namespace Mnnh.Dhmgs.Editor
 					: null;
 
 				ValidatePublishedAsset(motionPath, motion);
-				if (publishGeneric)
-				{
-					ValidatePublishedAsset(genericPath, generic);
-				}
 				if (publishHumanoid)
 				{
 					ValidatePublishedAsset(humanoidInPlacePath, humanoidInPlace);
@@ -388,10 +335,6 @@ namespace Mnnh.Dhmgs.Editor
 				}
 
 				string summary = $"[{import.SourceId}] Saved {motion.frameCount} frames @ {motion.fps:F2} fps\n{motionPath}";
-				if (generic != null)
-				{
-					summary += $"\nGeneric: {genericPath}";
-				}
 				if (humanoidInPlace != null)
 				{
 					summary += $"\nHumanoid In-Place: {humanoidInPlacePath}";
@@ -402,7 +345,6 @@ namespace Mnnh.Dhmgs.Editor
 				{
 					Motion = motion,
 					MotionAssetPath = motionPath,
-					GenericClip = generic,
 					HumanoidInPlaceClip = humanoidInPlace,
 					HumanoidRootMotionClip = humanoidRootMotion,
 					Summary = summary,

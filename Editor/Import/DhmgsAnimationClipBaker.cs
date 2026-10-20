@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,28 +20,6 @@ namespace Mnnh.Dhmgs.Editor
 
 	internal static class DhmgsAnimationClipBaker
 	{
-		internal static async Task<AnimationClip> BakeGenericAsync(
-			DhmgsMotionAsset asset,
-			Action<float> onProgress,
-			CancellationToken cancellationToken)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			GameObject model = DhmgsPackageDefaults.LoadNeutralSmplx();
-			if (!Validate(asset, model, out string error))
-			{
-				throw new InvalidOperationException(error);
-			}
-			return await BakeOnInstanceAsync(
-				asset,
-				model,
-				(player, instance) => RecordGenericAsync(
-					asset,
-					instance,
-					onProgress,
-					cancellationToken),
-				cancellationToken);
-		}
-
 		internal static async Task<DhmgsHumanoidBakeArtifacts> BakeHumanoidVariantsAsync(
 			DhmgsMotionAsset asset,
 			Action<float> onProgress,
@@ -170,80 +147,6 @@ namespace Mnnh.Dhmgs.Editor
 			}
 		}
 
-		private static async Task<AnimationClip> RecordGenericAsync(
-			DhmgsMotionAsset asset,
-			GameObject instance,
-			Action<float> onProgress,
-			CancellationToken cancellationToken)
-		{
-			DhmgsEditorYield editorYield = new DhmgsEditorYield();
-			Dictionary<string, Transform> transformsByName = new Dictionary<string, Transform>(StringComparer.Ordinal);
-			foreach (Transform candidate in instance.GetComponentsInChildren<Transform>(true))
-			{
-				if (!transformsByName.ContainsKey(candidate.name))
-				{
-					transformsByName.Add(candidate.name, candidate);
-				}
-			}
-
-			AnimationClip clip = new AnimationClip { frameRate = asset.fps };
-			try
-			{
-				Dictionary<Transform, int> drivenTransforms = new Dictionary<Transform, int>();
-				if (transformsByName.TryGetValue("pelvis", out Transform pelvis))
-				{
-					drivenTransforms[pelvis] = -1;
-				}
-				for (int boneIndex = 0; boneIndex < asset.boneCount; boneIndex++)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-					string boneName = asset.boneNames[boneIndex];
-					if (!string.IsNullOrEmpty(boneName) && transformsByName.TryGetValue(boneName, out Transform bone))
-					{
-						drivenTransforms[bone] = boneIndex;
-					}
-				}
-
-				if (drivenTransforms.Count == 0)
-				{
-					throw new InvalidOperationException("The SMPL-X bake source has no transforms driven by this motion.");
-				}
-
-				int drivenIndex = 0;
-				foreach (KeyValuePair<Transform, int> driven in drivenTransforms)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-					string path = AnimationUtility.CalculateTransformPath(driven.Key, instance.transform);
-					Quaternion[] rotations = new Quaternion[asset.frameCount];
-					for (int frameIndex = 0; frameIndex < asset.frameCount; frameIndex++)
-					{
-						if ((frameIndex & 31) == 0)
-						{
-							await editorYield.CheckpointAsync(cancellationToken);
-						}
-						rotations[frameIndex] = driven.Value < 0
-							? asset.pelvisRotations[frameIndex]
-							: asset.boneRotations[frameIndex * asset.boneCount + driven.Value];
-					}
-
-					SetLocalRotationCurves(clip, path, rotations, asset.fps, cancellationToken);
-					drivenIndex++;
-					onProgress?.Invoke((float)drivenIndex / drivenTransforms.Count);
-					await editorYield.CheckpointAsync(cancellationToken);
-				}
-
-				clip.EnsureQuaternionContinuity();
-				cancellationToken.ThrowIfCancellationRequested();
-				onProgress?.Invoke(1f);
-				return clip;
-			}
-			catch
-			{
-				UnityEngine.Object.DestroyImmediate(clip);
-				throw;
-			}
-		}
-
 		private static async Task<DhmgsHumanoidBakeArtifacts> RecordHumanoidVariantsAsync(
 			DhmgsMotionAsset asset,
 			DhmgsRigDriver player,
@@ -338,7 +241,7 @@ namespace Mnnh.Dhmgs.Editor
 			}
 
 			Keyframe[][] rootRotationKeys = DhmgsQuaternionCurves.CreateKeys(
-				rootRotations, asset.fps, true, cancellationToken);
+				rootRotations, asset.fps, cancellationToken);
 			AnimationClip inPlaceClip = null;
 			AnimationClip rootMotionClip = null;
 			try
@@ -440,36 +343,6 @@ namespace Mnnh.Dhmgs.Editor
 				UnityEngine.Object.DestroyImmediate(clip);
 				throw;
 			}
-		}
-
-		private static void SetLocalRotationCurves(
-			AnimationClip clip,
-			string path,
-			Quaternion[] rotations,
-			float fps,
-			CancellationToken cancellationToken)
-		{
-			Keyframe[][] keys = DhmgsQuaternionCurves.CreateKeys(rotations, fps, true, cancellationToken);
-			SetTransformCurve(clip, path, "m_LocalRotation.x",
-				keys[0], cancellationToken);
-			SetTransformCurve(clip, path, "m_LocalRotation.y",
-				keys[1], cancellationToken);
-			SetTransformCurve(clip, path, "m_LocalRotation.z",
-				keys[2], cancellationToken);
-			SetTransformCurve(clip, path, "m_LocalRotation.w",
-				keys[3], cancellationToken);
-		}
-
-		private static void SetTransformCurve(
-			AnimationClip clip,
-			string path,
-			string property,
-			Keyframe[] keys,
-			CancellationToken cancellationToken)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			EditorCurveBinding binding = EditorCurveBinding.FloatCurve(path, typeof(Transform), property);
-			AnimationUtility.SetEditorCurve(clip, binding, new AnimationCurve(keys));
 		}
 
 		private static void ConfigureRootTransform(AnimationClip clip, bool inPlace)

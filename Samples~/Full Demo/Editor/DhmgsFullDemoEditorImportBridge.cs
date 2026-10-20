@@ -38,7 +38,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 					baseUrl,
 					attemptId,
 					DhmgsImportService.DefaultOutputRoot,
-					DhmgsBakeOutputs.Humanoid,
+					true,
 					DhmgsVideoPolicy.CacheIfPresent),
 				value => Report(onProgress, value),
 				cancellationToken);

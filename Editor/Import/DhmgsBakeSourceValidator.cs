@@ -44,13 +44,8 @@ namespace Mnnh.Dhmgs.Editor
 
 		internal static void ValidatePreflight(
 			GameObject model,
-			DhmgsBakeOutputs outputs,
 			List<DhmgsImportDiagnostic> diagnostics)
 		{
-			if (outputs == DhmgsBakeOutputs.None)
-			{
-				return;
-			}
 			if (model == null)
 			{
 				diagnostics.Add(Error("bake.source.missing",
@@ -67,18 +62,15 @@ namespace Mnnh.Dhmgs.Editor
 			}
 
 			ValidateBoneNames(model, CanonicalMotionBones, diagnostics);
-			if ((outputs & DhmgsBakeOutputs.Humanoid) != 0)
+			Avatar avatar = ResolveHumanoidAvatar(model);
+			if (avatar == null)
 			{
-				Avatar avatar = ResolveHumanoidAvatar(model);
-				if (avatar == null)
-				{
-					diagnostics.Add(Error("bake.source.not-humanoid",
-						"Humanoid baking requires a valid Human Avatar on the SMPL-X bake source."));
-				}
-				else
-				{
-					ValidateHumanoidAvatarMapping(model, avatar, diagnostics);
-				}
+				diagnostics.Add(Error("bake.source.not-humanoid",
+					"Humanoid baking requires a valid Human Avatar on the SMPL-X bake source."));
+			}
+			else
+			{
+				ValidateHumanoidAvatarMapping(model, avatar, diagnostics);
 			}
 		}
 

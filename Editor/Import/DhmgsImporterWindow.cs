@@ -15,7 +15,6 @@ namespace Mnnh.Dhmgs.Editor
 		private string _baseUrl;
 		private string _outputRoot;
 		private string _attemptIdText;
-		private bool _bakeGeneric;
 		private bool _bakeHumanoid;
 		private bool _cachePreviewVideo;
 
@@ -46,7 +45,6 @@ namespace Mnnh.Dhmgs.Editor
 			_baseUrl = settings.BaseUrl;
 			_outputRoot = settings.OutputRoot;
 			_attemptIdText = settings.AttemptIdText;
-			_bakeGeneric = settings.BakeGeneric;
 			_bakeHumanoid = settings.BakeHumanoid;
 			_cachePreviewVideo = settings.CachePreviewVideo;
 		}
@@ -71,7 +69,6 @@ namespace Mnnh.Dhmgs.Editor
 
 				EditorGUILayout.Space();
 				EditorGUILayout.LabelField("Animation Clip Baking", EditorStyles.boldLabel);
-				_bakeGeneric = EditorGUILayout.Toggle("Bake Generic Clip", _bakeGeneric);
 				_bakeHumanoid = EditorGUILayout.Toggle("Bake Humanoid Clips", _bakeHumanoid);
 				_cachePreviewVideo = EditorGUILayout.Toggle(
 					"Cache Preview Video If Present",
@@ -83,7 +80,6 @@ namespace Mnnh.Dhmgs.Editor
 						_baseUrl,
 						_outputRoot,
 						_attemptIdText,
-						_bakeGeneric,
 						_bakeHumanoid,
 						_cachePreviewVideo);
 				}
@@ -136,21 +132,12 @@ namespace Mnnh.Dhmgs.Editor
 			int attemptId = int.TryParse(_attemptIdText, out int parsedAttemptId)
 				? parsedAttemptId
 				: -1;
-			DhmgsBakeOutputs outputs = DhmgsBakeOutputs.None;
-			if (_bakeGeneric)
-			{
-				outputs |= DhmgsBakeOutputs.Generic;
-			}
-			if (_bakeHumanoid)
-			{
-				outputs |= DhmgsBakeOutputs.Humanoid;
-			}
 
 			return new DhmgsImportJobRequest(
 				_baseUrl,
 				attemptId,
 				_outputRoot,
-				outputs,
+				_bakeHumanoid,
 				_cachePreviewVideo ? DhmgsVideoPolicy.CacheIfPresent : DhmgsVideoPolicy.Ignore);
 		}
 
@@ -297,7 +284,6 @@ namespace Mnnh.Dhmgs.Editor
 			EditorGUILayout.Space();
 			EditorGUILayout.LabelField("Imported Assets", EditorStyles.boldLabel);
 			DrawAssetButton("Select Motion", _lastResult.Motion);
-			DrawAssetButton("Select Generic Clip", _lastResult.GenericClip);
 			DrawAssetButton("Select Humanoid In-Place Clip", _lastResult.HumanoidInPlaceClip);
 			DrawAssetButton("Select Humanoid Root Motion Clip", _lastResult.HumanoidRootMotionClip);
 
@@ -343,7 +329,6 @@ namespace Mnnh.Dhmgs.Editor
 				.Append(result.Motion.frameCount).Append(" frames @ ")
 				.Append(result.Motion.fps.ToString("F2")).AppendLine(" fps");
 			summary.AppendLine(result.MotionAssetPath);
-			AppendAssetPath(summary, "Generic", result.GenericClip);
 			AppendAssetPath(summary, "Humanoid In-Place", result.HumanoidInPlaceClip);
 			AppendAssetPath(summary, "Humanoid Root Motion", result.HumanoidRootMotionClip);
 			if (!string.IsNullOrEmpty(result.SourceManifestPath))

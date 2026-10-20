@@ -66,10 +66,6 @@ namespace Mnnh.Dhmgs.Editor
 					diagnostics.Add(Error("request.timeout.invalid", "Timeout must be greater than zero."));
 				}
 			}
-			if ((request.BakeOutputs & ~(DhmgsBakeOutputs.Generic | DhmgsBakeOutputs.Humanoid)) != 0)
-			{
-				diagnostics.Add(Error("request.outputs.invalid", "The requested bake output flags are invalid."));
-			}
 			if (!Enum.IsDefined(typeof(DhmgsVideoPolicy), request.VideoPolicy))
 			{
 				diagnostics.Add(Error("request.video-policy.invalid", "The preview video policy is invalid."));
@@ -84,11 +80,10 @@ namespace Mnnh.Dhmgs.Editor
 				diagnostics.Add(Error("request.output.invalid", exception.Message));
 			}
 
-			if (request.BakeOutputs != DhmgsBakeOutputs.None)
+			if (request.BakeHumanoid)
 			{
 				DhmgsBakeSourceValidator.ValidatePreflight(
 					DhmgsPackageDefaults.LoadNeutralSmplx(),
-					request.BakeOutputs,
 					diagnostics);
 			}
 			return new DhmgsImportValidation(diagnostics);
@@ -134,7 +129,7 @@ namespace Mnnh.Dhmgs.Editor
 						pipelineProgress,
 						cancellationToken);
 
-				if (request.BakeOutputs != DhmgsBakeOutputs.None)
+				if (request.BakeHumanoid)
 				{
 					Report(onProgress, jobId, revision, DhmgsImportJobStage.ValidatingBakeSource, 0f, 0.57f,
 						"Validating SMPL-X bake source", true);
@@ -169,8 +164,7 @@ namespace Mnnh.Dhmgs.Editor
 					new DhmgsAssetWriteOptions
 					{
 						OutputRoot = request.OutputRoot,
-						BakeGenericClip = (request.BakeOutputs & DhmgsBakeOutputs.Generic) != 0,
-						BakeHumanoidClips = (request.BakeOutputs & DhmgsBakeOutputs.Humanoid) != 0,
+						BakeHumanoidClips = request.BakeHumanoid,
 						CancellationToken = cancellationToken,
 					},
 					(stage, stageProgress, message, canCancel) =>
@@ -218,11 +212,7 @@ namespace Mnnh.Dhmgs.Editor
 					reloadLocked = true;
 					cacheTransaction?.Publish(CancellationToken.None);
 					written = preparedAssets.Publish();
-					if ((request.BakeOutputs & DhmgsBakeOutputs.Generic) != 0 && written.GenericClip == null)
-					{
-						throw new InvalidOperationException("The requested Generic clip was not produced.");
-					}
-					if ((request.BakeOutputs & DhmgsBakeOutputs.Humanoid) != 0 &&
+					if (request.BakeHumanoid &&
 						(written.HumanoidInPlaceClip == null || written.HumanoidRootMotionClip == null))
 					{
 						throw new InvalidOperationException("The requested Humanoid clips were not produced.");
@@ -259,7 +249,6 @@ namespace Mnnh.Dhmgs.Editor
 					jobId,
 					written.Motion,
 					written.MotionAssetPath,
-					written.GenericClip,
 					written.HumanoidInPlaceClip,
 					written.HumanoidRootMotionClip,
 					cacheTransaction?.ManifestPath,
@@ -345,8 +334,7 @@ namespace Mnnh.Dhmgs.Editor
 		{
 			(float start, float span) = stage switch
 			{
-				DhmgsImportJobStage.BakingGeneric => (0.61f, 0.11f),
-				DhmgsImportJobStage.BakingHumanoid => (0.72f, 0.16f),
+				DhmgsImportJobStage.BakingHumanoid => (0.61f, 0.27f),
 				DhmgsImportJobStage.PreparingAssets => (0.88f, 0.02f),
 				DhmgsImportJobStage.Publishing => (0.95f, 0.05f),
 				_ => (0.61f, 0.29f),

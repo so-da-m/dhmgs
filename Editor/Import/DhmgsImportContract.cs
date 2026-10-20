@@ -6,14 +6,6 @@ using UnityEngine;
 
 namespace Mnnh.Dhmgs.Editor
 {
-	[Flags]
-	public enum DhmgsBakeOutputs
-	{
-		None = 0,
-		Generic = 1 << 0,
-		Humanoid = 1 << 1,
-	}
-
 	public enum DhmgsVideoPolicy
 	{
 		Ignore,
@@ -28,7 +20,6 @@ namespace Mnnh.Dhmgs.Editor
 		Extracting,
 		Decoding,
 		ValidatingBakeSource,
-		BakingGeneric,
 		BakingHumanoid,
 		PreparingAssets,
 		PreparingCache,
@@ -92,7 +83,7 @@ namespace Mnnh.Dhmgs.Editor
 			string baseUrl,
 			int attemptId,
 			string outputRoot,
-			DhmgsBakeOutputs bakeOutputs,
+			bool bakeHumanoid,
 			DhmgsVideoPolicy videoPolicy = DhmgsVideoPolicy.CacheIfPresent,
 			int timeoutSeconds = DhmgsImportService.DefaultTimeoutSeconds)
 		{
@@ -101,7 +92,7 @@ namespace Mnnh.Dhmgs.Editor
 			AttemptId = attemptId;
 			SourceId = attemptId.ToString(CultureInfo.InvariantCulture);
 			OutputRoot = outputRoot;
-			BakeOutputs = bakeOutputs;
+			BakeHumanoid = bakeHumanoid;
 			VideoPolicy = videoPolicy;
 			TimeoutSeconds = timeoutSeconds;
 		}
@@ -110,7 +101,7 @@ namespace Mnnh.Dhmgs.Editor
 			string sourceId,
 			byte[] archiveBytes,
 			string outputRoot,
-			DhmgsBakeOutputs bakeOutputs,
+			bool bakeHumanoid,
 			DhmgsVideoPolicy videoPolicy = DhmgsVideoPolicy.CacheIfPresent)
 		{
 			if (archiveBytes != null && archiveBytes.LongLength > DhmgsArchiveLimits.MaxArchiveBytes)
@@ -125,7 +116,7 @@ namespace Mnnh.Dhmgs.Editor
 			BaseUrl = string.Empty;
 			AttemptId = -1;
 			OutputRoot = outputRoot;
-			BakeOutputs = bakeOutputs;
+			BakeHumanoid = bakeHumanoid;
 			VideoPolicy = videoPolicy;
 			TimeoutSeconds = DhmgsImportService.DefaultTimeoutSeconds;
 		}
@@ -134,7 +125,7 @@ namespace Mnnh.Dhmgs.Editor
 		public int AttemptId { get; }
 		public string SourceId { get; }
 		public string OutputRoot { get; }
-		public DhmgsBakeOutputs BakeOutputs { get; }
+		public bool BakeHumanoid { get; }
 		public DhmgsVideoPolicy VideoPolicy { get; }
 		public int TimeoutSeconds { get; }
 		internal byte[] ArchiveBytes { get; }
@@ -170,7 +161,6 @@ namespace Mnnh.Dhmgs.Editor
 			Guid jobId,
 			DhmgsMotionAsset motion,
 			string motionAssetPath,
-			AnimationClip genericClip,
 			AnimationClip humanoidInPlaceClip,
 			AnimationClip humanoidRootMotionClip,
 			string sourceManifestPath,
@@ -183,7 +173,6 @@ namespace Mnnh.Dhmgs.Editor
 			JobId = jobId;
 			Motion = motion;
 			MotionAssetPath = motionAssetPath;
-			GenericClip = genericClip;
 			HumanoidInPlaceClip = humanoidInPlaceClip;
 			HumanoidRootMotionClip = humanoidRootMotionClip;
 			SourceManifestPath = sourceManifestPath;
@@ -199,7 +188,6 @@ namespace Mnnh.Dhmgs.Editor
 		public Guid JobId { get; }
 		public DhmgsMotionAsset Motion { get; }
 		public string MotionAssetPath { get; }
-		public AnimationClip GenericClip { get; }
 		public AnimationClip HumanoidInPlaceClip { get; }
 		public AnimationClip HumanoidRootMotionClip { get; }
 		public string SourceManifestPath { get; }

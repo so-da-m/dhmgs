@@ -9,7 +9,6 @@ namespace Mnnh.Dhmgs.Editor
 		internal static Keyframe[][] CreateKeys(
 			Quaternion[] rotations,
 			float fps,
-			bool linearTangents,
 			CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -37,12 +36,9 @@ namespace Mnnh.Dhmgs.Editor
 				previous = rotation;
 			}
 
-			if (linearTangents)
+			foreach (Keyframe[] componentKeys in keys)
 			{
-				foreach (Keyframe[] componentKeys in keys)
-				{
-					DhmgsCurveTangents.ApplyLinear(componentKeys, frameDuration, cancellationToken);
-				}
+				DhmgsCurveTangents.ApplyLinear(componentKeys, frameDuration, cancellationToken);
 			}
 			return keys;
 		}
