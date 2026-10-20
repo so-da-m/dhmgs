@@ -31,7 +31,7 @@ namespace Mnnh.Dhmgs.Samples
 		public bool ShowHumanoidBones { get; private set; } = true;
 		public bool ShowHumanoidBoneNames { get; private set; }
 		public bool ShowHumanoidGround { get; private set; } = true;
-		public float HumanoidGroundHeight { get; private set; } = -1.35f;
+		public float HumanoidGroundHeight { get; private set; }
 		public bool CanSetVideoOpacity => _playback != null && _playback.CanSetVideoOpacity;
 
 		private void OnEnable()

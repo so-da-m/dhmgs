@@ -45,7 +45,7 @@
                         </ui:VisualElement>
                         <ui:VisualElement class="row preview-options">
                             <ui:Toggle name="humanoid-ground" label="Ground" value="true" />
-                            <ui:FloatField name="humanoid-ground-height" label="Ground Y" value="-1.35" is-delayed="true" class="ground-height" tooltip="Ground height in meters." />
+                            <ui:FloatField name="humanoid-ground-height" label="Ground Y" value="0" is-delayed="true" class="ground-height" tooltip="Ground height in meters." />
                         </ui:VisualElement>
                     </ui:VisualElement>
                     <ui:VisualElement name="humanoid-viewport" class="viewport" tooltip="Drag: orbit. Right or middle drag: pan. Scroll: zoom." />
