@@ -1,0 +1,28 @@
+{
+    "name": "Mnnh.Dhmgs.Editor.Cli",
+    "rootNamespace": "Mnnh.Dhmgs.Editor.Cli",
+    "references": [
+        "Mnnh.Dhmgs.Editor",
+        "Mnnh.Dhmgs.Runtime",
+        "Unity.Pipeline.Attributes"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "DHMGS_UNITY_PIPELINE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.pipeline",
+            "expression": "",
+            "define": "DHMGS_UNITY_PIPELINE"
+        }
+    ],
+    "noEngineReferences": false
+}
