@@ -22,18 +22,21 @@ namespace Mnnh.Dhmgs.Samples
 	{
 		public DhmgsSampleImportResult(
 			DhmgsMotionAsset motion,
-			AnimationClip humanoidClip,
+			AnimationClip humanoidInPlaceClip,
+			AnimationClip humanoidRootMotionClip,
 			string videoPath,
 			string summary)
 		{
 			Motion = motion;
-			HumanoidClip = humanoidClip;
+			HumanoidInPlaceClip = humanoidInPlaceClip;
+			HumanoidRootMotionClip = humanoidRootMotionClip;
 			VideoPath = videoPath;
 			Summary = summary;
 		}
 
 		public DhmgsMotionAsset Motion { get; }
-		public AnimationClip HumanoidClip { get; }
+		public AnimationClip HumanoidInPlaceClip { get; }
+		public AnimationClip HumanoidRootMotionClip { get; }
 		public string VideoPath { get; }
 		public string Summary { get; }
 	}

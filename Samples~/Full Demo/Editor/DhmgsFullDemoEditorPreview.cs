@@ -22,18 +22,21 @@ namespace Mnnh.Dhmgs.Samples.Editor
 		private readonly CancellationTokenSource _lifetimeCancellation = new CancellationTokenSource();
 		private GameObject _host;
 		private GameObject _avatarPrefab;
-		private AnimationClip _clip;
+		private AnimationClip _inPlaceClip;
+		private AnimationClip _rootMotionClip;
 		private DhmgsCameraOverlay _overlay;
 		private DhmgsHumanoidPreview _humanoidPreview;
 		private Matrix4x4 _previousProjection;
 		private Rect _previousRect;
 		private float _previousAspect;
 		private float _videoOpacity = 1f;
+		private bool _humanoidRootMotion;
 		private bool _cameraConfigured;
 		private bool _preparationStarted;
 		private bool _hasHumanoidTarget;
 		private bool _holdsBackgroundPreparation;
 		private bool _disposed;
+		private AnimationClip SelectedHumanoidClip => _humanoidRootMotion ? _rootMotionClip : _inPlaceClip;
 
 		static DhmgsFullDemoEditorPreview()
 		{
@@ -92,10 +95,11 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			ConfigureCamera(imported.Motion);
 			if (_humanoidCamera != null)
 			{
-				_clip = imported.HumanoidClip;
-				if (_clip == null)
+				_inPlaceClip = imported.HumanoidInPlaceClip;
+				_rootMotionClip = imported.HumanoidRootMotionClip;
+				if (_inPlaceClip == null || _rootMotionClip == null)
 				{
-					throw new InvalidOperationException("The imported motion has no Humanoid preview clip.");
+					throw new InvalidOperationException("The imported motion requires both Humanoid preview clips.");
 				}
 				string path = AssetDatabase.GUIDToAssetPath(PreviewAvatarGuid);
 				_avatarPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -140,7 +144,8 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				return;
 			}
-			if (!_humanoidPreview.Play(_avatarPrefab, _clip, clock, ResolveIsolationPosition()))
+			if (!_humanoidPreview.Play(_avatarPrefab, SelectedHumanoidClip, clock,
+				ResolveIsolationPosition(), _humanoidRootMotion))
 			{
 				throw new InvalidOperationException("Could not play the baked Humanoid clip on the preview avatar.");
 			}
@@ -157,6 +162,20 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			if (_overlay != null)
 			{
 				_overlay.SetVideoAlpha(_videoOpacity);
+			}
+		}
+
+		public override void SetHumanoidRootMotion(bool enabled)
+		{
+			ThrowIfDisposed();
+			if (_humanoidRootMotion == enabled)
+			{
+				return;
+			}
+			_humanoidRootMotion = enabled;
+			if (_humanoidPreview != null && _humanoidPreview.Pivot != null)
+			{
+				_humanoidPreview.SetClip(SelectedHumanoidClip, enabled);
 			}
 		}
 
@@ -290,7 +309,8 @@ namespace Mnnh.Dhmgs.Samples.Editor
 				_host = null;
 			}
 			_avatarPrefab = null;
-			_clip = null;
+			_inPlaceClip = null;
+			_rootMotionClip = null;
 			_lifetimeCancellation.Dispose();
 		}
 	}

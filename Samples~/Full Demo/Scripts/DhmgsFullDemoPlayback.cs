@@ -31,6 +31,7 @@ namespace Mnnh.Dhmgs.Samples
 		private DhmgsFullDemoPlaybackState _state;
 		private float _speed = 1f;
 		private float _videoOpacity = 1f;
+		private bool _humanoidRootMotion = true;
 		private bool _scrubbing;
 
 		public event Action MotionLoaded;
@@ -39,6 +40,8 @@ namespace Mnnh.Dhmgs.Samples
 		public DhmgsMotionAsset Motion => _motion;
 		public DhmgsFullDemoPlaybackState State => _state;
 		public float Speed => _speed;
+		public bool HumanoidRootMotion => _humanoidRootMotion;
+		public bool CanSetHumanoidRootMotion => HasMotion && _preview != null && _humanoidPreviewCamera != null;
 		public bool CanLoad => isActiveAndEnabled && _player != null && _player.isActiveAndEnabled;
 		public bool HasVideoPreview { get; private set; }
 		public bool HasMotion => _clock != null && _motion != null && OwnsPlayer;
@@ -80,6 +83,7 @@ namespace Mnnh.Dhmgs.Samples
 				if (_preview != null)
 				{
 					_preview.SetVideoOpacity(_videoOpacity);
+					_preview.SetHumanoidRootMotion(_humanoidRootMotion);
 					preparedClock = await _preview.PrepareAsync(imported, _loop, preparation.Token);
 				}
 				preparation.Token.ThrowIfCancellationRequested();
@@ -199,6 +203,16 @@ namespace Mnnh.Dhmgs.Samples
 		{
 			_videoOpacity = Mathf.Clamp01(opacity);
 			_preview?.SetVideoOpacity(_videoOpacity);
+		}
+
+		public void SetHumanoidRootMotion(bool enabled)
+		{
+			if (_humanoidRootMotion == enabled)
+			{
+				return;
+			}
+			_humanoidRootMotion = enabled;
+			_preview?.SetHumanoidRootMotion(enabled);
 		}
 
 		private void ApplyPauseState()

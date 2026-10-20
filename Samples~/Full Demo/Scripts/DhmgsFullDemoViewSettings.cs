@@ -24,10 +24,14 @@ namespace Mnnh.Dhmgs.Samples
 		public float AvatarOpacity { get; private set; } = 1f;
 		public float ClothesOpacity { get; private set; } = 1f;
 		public float VideoOpacity { get; private set; } = 1f;
-		public bool ShowMainBones { get; private set; }
+		public bool ShowMainBones { get; private set; } = true;
 		public bool ShowMainBoneNames { get; private set; }
-		public bool ShowHumanoidBones { get; private set; }
+		public bool ShowMainGround { get; private set; } = true;
+		public float MainGroundHeight { get; private set; } = -0.85f;
+		public bool ShowHumanoidBones { get; private set; } = true;
 		public bool ShowHumanoidBoneNames { get; private set; }
+		public bool ShowHumanoidGround { get; private set; } = true;
+		public float HumanoidGroundHeight { get; private set; } = -1.35f;
 		public bool CanSetVideoOpacity => _playback != null && _playback.CanSetVideoOpacity;
 
 		private void OnEnable()
@@ -149,6 +153,38 @@ namespace Mnnh.Dhmgs.Samples
 		public void SetHumanoidBoneNames(bool value)
 		{
 			ShowHumanoidBoneNames = value;
+			Changed?.Invoke();
+		}
+
+		public void SetMainGround(bool value)
+		{
+			ShowMainGround = value;
+			Changed?.Invoke();
+		}
+
+		public void SetMainGroundHeight(float value)
+		{
+			if (float.IsNaN(value) || float.IsInfinity(value))
+			{
+				return;
+			}
+			MainGroundHeight = value;
+			Changed?.Invoke();
+		}
+
+		public void SetHumanoidGround(bool value)
+		{
+			ShowHumanoidGround = value;
+			Changed?.Invoke();
+		}
+
+		public void SetHumanoidGroundHeight(float value)
+		{
+			if (float.IsNaN(value) || float.IsInfinity(value))
+			{
+				return;
+			}
+			HumanoidGroundHeight = value;
 			Changed?.Invoke();
 		}
 

@@ -52,6 +52,10 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			{
 				throw new InvalidOperationException("Humanoid bake did not produce an in-place clip.");
 			}
+			if (job.HumanoidRootMotionClip == null)
+			{
+				throw new InvalidOperationException("Humanoid bake did not produce a root motion clip.");
+			}
 
 			bool videoNotPresent = false;
 			foreach (DhmgsImportDiagnostic diagnostic in job.Diagnostics)
@@ -66,6 +70,7 @@ namespace Mnnh.Dhmgs.Samples.Editor
 			return new DhmgsSampleImportResult(
 				job.Motion,
 				job.HumanoidInPlaceClip,
+				job.HumanoidRootMotionClip,
 				job.PreviewVideoPath,
 				BuildSummary(job));
 		}

@@ -21,6 +21,7 @@ namespace Mnnh.Dhmgs.Samples
 
 		public Camera ProjectionCamera => _previewCamera != null ? _previewCamera.PreviewCamera : _camera;
 		public IReadOnlyList<Transform> Bones => _bones;
+		public Transform Origin => _boundAnimator != null ? _boundAnimator.transform : _boundRoot;
 		public bool HasSource => isActiveAndEnabled && _bones.Length > 0 && ProjectionCamera != null &&
 			ProjectionCamera.isActiveAndEnabled;
 

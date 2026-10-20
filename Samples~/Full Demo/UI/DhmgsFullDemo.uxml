@@ -20,8 +20,12 @@
                             <ui:Button name="reset-main" text="Reset camera" />
                         </ui:VisualElement>
                         <ui:VisualElement class="row preview-options">
-                            <ui:Toggle name="main-bones" label="Bones" />
+                            <ui:Toggle name="main-bones" label="Bones" value="true" />
                             <ui:Toggle name="main-names" label="Names" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="row preview-options">
+                            <ui:Toggle name="main-ground" label="Ground" value="true" />
+                            <ui:FloatField name="main-ground-height" label="Ground Y" value="-0.85" is-delayed="true" class="ground-height" tooltip="Ground height in meters." />
                         </ui:VisualElement>
                     </ui:VisualElement>
                     <ui:VisualElement name="main-viewport" class="viewport" tooltip="Drag: orbit. Right or middle drag: pan. Scroll: zoom." />
@@ -33,8 +37,15 @@
                             <ui:Button name="reset-humanoid" text="Reset camera" />
                         </ui:VisualElement>
                         <ui:VisualElement class="row preview-options">
-                            <ui:Toggle name="humanoid-bones" label="Bones" />
+                            <ui:DropdownField name="humanoid-mode" label="Mode" class="preview-mode" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="row preview-options">
+                            <ui:Toggle name="humanoid-bones" label="Bones" value="true" />
                             <ui:Toggle name="humanoid-names" label="Names" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="row preview-options">
+                            <ui:Toggle name="humanoid-ground" label="Ground" value="true" />
+                            <ui:FloatField name="humanoid-ground-height" label="Ground Y" value="-1.35" is-delayed="true" class="ground-height" tooltip="Ground height in meters." />
                         </ui:VisualElement>
                     </ui:VisualElement>
                     <ui:VisualElement name="humanoid-viewport" class="viewport" tooltip="Drag: orbit. Right or middle drag: pan. Scroll: zoom." />

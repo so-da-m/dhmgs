@@ -10,10 +10,25 @@ namespace Mnnh.Dhmgs
 	{
 		private const float LineWidth = 1.5f;
 		private const float JointRadius = 2.5f;
+		private const float RootRadius = 5f;
+		private const float RootAxisLength = 0.15f;
 		private static readonly Color BoneColor = new Color(1f, 61f / 255f, 200f / 255f, 1f);
 		private static readonly Color JointColor = new Color(1f, 228f / 255f, 92f / 255f, 1f);
+		private static readonly Color RootColor = new Color(0f, 1f, 1f, 1f);
+		private static readonly Color[] AxisColors =
+		{
+			new Color(1f, 0.25f, 0.25f, 1f),
+			new Color(0.3f, 1f, 0.3f, 1f),
+			new Color(0.3f, 0.6f, 1f, 1f),
+		};
 
 		private Camera _camera;
+		private Transform _root;
+		private Label _rootLabel;
+		private Vector2 _rootPosition;
+		private bool _rootVisible;
+		private readonly Vector2[] _axisPositions = new Vector2[3];
+		private readonly bool[] _axisVisible = new bool[3];
 		private Transform[] _bones = Array.Empty<Transform>();
 		private int[] _parents = Array.Empty<int>();
 		private Vector2[] _positions = Array.Empty<Vector2>();
@@ -58,10 +73,12 @@ namespace Mnnh.Dhmgs
 			}
 		}
 
-		public void Bind(Camera camera, IReadOnlyList<Transform> bones)
+		public void Bind(Camera camera, IReadOnlyList<Transform> bones, Transform root = null)
 		{
 			Clear();
 			_camera = camera;
+			_root = root;
+			_rootVisible = false;
 			_hasProjection = false;
 			Dictionary<Transform, int> indices = new Dictionary<Transform, int>();
 			List<Transform> selected = new List<Transform>();
@@ -78,6 +95,11 @@ namespace Mnnh.Dhmgs
 				}
 			}
 			_bones = selected.ToArray();
+			if (_root == null && _bones.Length > 0)
+			{
+				Animator animator = _bones[0].GetComponentInParent<Animator>();
+				_root = animator != null ? animator.transform : null;
+			}
 			_parents = new int[_bones.Length];
 			_positions = new Vector2[_bones.Length];
 			_visible = new bool[_bones.Length];
@@ -102,12 +124,21 @@ namespace Mnnh.Dhmgs
 				_labels[i] = label;
 				Add(label);
 			}
+			_rootLabel = new Label("Root") { pickingMode = PickingMode.Ignore };
+			_rootLabel.style.position = Position.Absolute;
+			_rootLabel.style.fontSize = 12f;
+			_rootLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+			_rootLabel.style.color = RootColor;
+			_rootLabel.style.backgroundColor = new Color(0f, 0f, 0f, 0.75f);
+			_rootLabel.style.display = DisplayStyle.None;
+			Add(_rootLabel);
 			Refresh();
 		}
 
 		public void Refresh()
 		{
 			Rect rect = contentRect;
+			_rootVisible = false;
 			_hasProjection = _camera != null && _camera.isActiveAndEnabled && _bones.Length > 0 &&
 				rect.width > 0f && rect.height > 0f;
 			if (!_hasProjection)
@@ -130,21 +161,39 @@ namespace Mnnh.Dhmgs
 				{
 					continue;
 				}
-				Vector3 projected = _camera.WorldToViewportPoint(_bones[i].position);
-				if (projected.z < _camera.nearClipPlane || projected.z > _camera.farClipPlane ||
-					float.IsNaN(projected.x) || float.IsInfinity(projected.x) ||
-					float.IsNaN(projected.y) || float.IsInfinity(projected.y))
+				_visible[i] = TryProject(_bones[i].position, out _positions[i]);
+			}
+			if (_root != null && _root.gameObject.activeInHierarchy)
+			{
+				_rootVisible = TryProject(_root.position, out _rootPosition) && _viewport.Contains(_rootPosition);
+				if (_rootVisible)
 				{
-					continue;
+					_axisVisible[0] = TryProject(_root.position + _root.right * RootAxisLength, out _axisPositions[0]);
+					_axisVisible[1] = TryProject(_root.position + _root.up * RootAxisLength, out _axisPositions[1]);
+					_axisVisible[2] = TryProject(_root.position + _root.forward * RootAxisLength, out _axisPositions[2]);
 				}
-				_positions[i] = new Vector2(
-					rect.xMin + (cameraRect.x + projected.x * cameraRect.width) * rect.width,
-					rect.yMin + (1f - cameraRect.y - projected.y * cameraRect.height) * rect.height);
-				_visible[i] = true;
 			}
 			_hasProjection = _viewport.width > 0f && _viewport.height > 0f;
 			UpdateLabels();
 			MarkDirtyRepaint();
+		}
+
+		private bool TryProject(Vector3 worldPosition, out Vector2 point)
+		{
+			point = default;
+			Vector3 projected = _camera.WorldToViewportPoint(worldPosition);
+			if (projected.z < _camera.nearClipPlane || projected.z > _camera.farClipPlane ||
+				float.IsNaN(projected.x) || float.IsInfinity(projected.x) ||
+				float.IsNaN(projected.y) || float.IsInfinity(projected.y))
+			{
+				return false;
+			}
+			Rect rect = contentRect;
+			Rect cameraRect = _camera.rect;
+			point = new Vector2(
+				rect.xMin + (cameraRect.x + projected.x * cameraRect.width) * rect.width,
+				rect.yMin + (1f - cameraRect.y - projected.y * cameraRect.height) * rect.height);
+			return true;
 		}
 
 		private void Draw(MeshGenerationContext context)
@@ -201,10 +250,63 @@ namespace Mnnh.Dhmgs
 				painter.ClosePath();
 				painter.Fill();
 			}
+			DrawRoot(painter);
+		}
+
+		private void DrawRoot(Painter2D painter)
+		{
+			if (!_rootVisible)
+			{
+				return;
+			}
+			painter.lineWidth = 2f;
+			Rect rect = Rect.MinMaxRect(_viewport.xMin + 1f, _viewport.yMin + 1f,
+				_viewport.xMax - 1f, _viewport.yMax - 1f);
+			if (rect.width <= 0f || rect.height <= 0f)
+			{
+				return;
+			}
+			for (int i = 0; i < _axisPositions.Length; i++)
+			{
+				Vector2 start = _rootPosition;
+				Vector2 end = _axisPositions[i];
+				if (!_axisVisible[i] || !ClipLine(ref start, ref end, rect) || (end - start).sqrMagnitude < 0.0001f)
+				{
+					continue;
+				}
+				painter.strokeColor = AxisColors[i];
+				painter.BeginPath();
+				painter.MoveTo(start);
+				painter.LineTo(end);
+				painter.Stroke();
+			}
+			if (_rootPosition.x - RootRadius < rect.xMin || _rootPosition.x + RootRadius > rect.xMax ||
+				_rootPosition.y - RootRadius < rect.yMin || _rootPosition.y + RootRadius > rect.yMax)
+			{
+				return;
+			}
+			painter.strokeColor = RootColor;
+			painter.fillColor = Color.black;
+			painter.BeginPath();
+			painter.MoveTo(_rootPosition + new Vector2(0f, -RootRadius));
+			painter.LineTo(_rootPosition + new Vector2(RootRadius, 0f));
+			painter.LineTo(_rootPosition + new Vector2(0f, RootRadius));
+			painter.LineTo(_rootPosition + new Vector2(-RootRadius, 0f));
+			painter.ClosePath();
+			painter.Fill();
+			painter.Stroke();
 		}
 
 		private void UpdateLabels()
 		{
+			if (_rootLabel != null)
+			{
+				_rootLabel.style.display = _hasProjection && _rootVisible ? DisplayStyle.Flex : DisplayStyle.None;
+				if (_hasProjection && _rootVisible)
+				{
+					PositionLabel(_rootLabel, _rootPosition);
+				}
+			}
 			for (int i = 0; i < _labels.Length; i++)
 			{
 				Label label = _labels[i];
@@ -214,11 +316,15 @@ namespace Mnnh.Dhmgs
 				{
 					continue;
 				}
-				Vector2 size = label.MeasureTextSize(label.text, 0f, MeasureMode.Undefined, 0f, MeasureMode.Undefined);
-				Vector2 point = _positions[i];
-				label.style.left = Mathf.Clamp(point.x + 6f, _viewport.xMin, Mathf.Max(_viewport.xMin, _viewport.xMax - size.x));
-				label.style.top = Mathf.Clamp(point.y - size.y - 4f, _viewport.yMin, Mathf.Max(_viewport.yMin, _viewport.yMax - size.y));
+				PositionLabel(label, _positions[i]);
 			}
+		}
+
+		private void PositionLabel(Label label, Vector2 point)
+		{
+			Vector2 size = label.MeasureTextSize(label.text, 0f, MeasureMode.Undefined, 0f, MeasureMode.Undefined);
+			label.style.left = Mathf.Clamp(point.x + 6f, _viewport.xMin, Mathf.Max(_viewport.xMin, _viewport.xMax - size.x));
+			label.style.top = Mathf.Clamp(point.y - size.y - 4f, _viewport.yMin, Mathf.Max(_viewport.yMin, _viewport.yMax - size.y));
 		}
 
 		private static bool ClipLine(ref Vector2 start, ref Vector2 end, Rect rect)

@@ -281,8 +281,8 @@
 }
 
 .preview-header {
-    height: 68px;
-    min-height: 68px;
+    height: 140px;
+    min-height: 140px;
     flex-shrink: 0;
     padding: 8px 10px;
     border-bottom-width: 1px;
@@ -296,6 +296,26 @@
 
 .preview-options {
     margin-top: 4px;
+}
+
+.demo .preview-mode {
+    flex-grow: 1;
+    flex-shrink: 1;
+    max-width: 220px;
+}
+
+.preview-mode > .unity-base-field__label {
+    width: 42px;
+}
+
+.demo .ground-height {
+    flex-grow: 1;
+    flex-shrink: 1;
+    max-width: 160px;
+}
+
+.ground-height > .unity-base-field__label {
+    width: 56px;
 }
 
 .viewport {

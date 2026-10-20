@@ -16,6 +16,8 @@ namespace Mnnh.Dhmgs
 		private bool _graphValid;
 		private IDhmgsPlaybackClock _source;
 		private double _clipDuration;
+		private Vector3 _rootPosition;
+		private Quaternion _rootRotation;
 
 		public Transform Pivot => _source != null && _instance != null
 			? (_pivot != null ? _pivot : _instance.transform)
@@ -35,7 +37,8 @@ namespace Mnnh.Dhmgs
 			GameObject avatarPrefab,
 			AnimationClip clip,
 			IDhmgsPlaybackClock source,
-			Vector3 isolationPosition)
+			Vector3 isolationPosition,
+			bool applyRootMotion = false)
 		{
 			Clear();
 			if (avatarPrefab == null || clip == null || source == null)
@@ -67,8 +70,9 @@ namespace Mnnh.Dhmgs
 
 				_animator.avatar = avatar;
 				_animator.runtimeAnimatorController = null;
-				_animator.applyRootMotion = false;
 				_animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+				_rootPosition = _animator.transform.position;
+				_rootRotation = _animator.transform.rotation;
 				_pivot = _animator.GetBoneTransform(HumanBodyBones.Hips);
 				foreach (SkinnedMeshRenderer renderer in _instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
 				{
@@ -76,9 +80,7 @@ namespace Mnnh.Dhmgs
 				}
 
 				_source = source;
-				_clipDuration = clip.length;
-				BuildGraph(clip);
-				EvaluateCurrentTime();
+				SetClip(clip, applyRootMotion);
 				return true;
 			}
 			catch
@@ -93,6 +95,20 @@ namespace Mnnh.Dhmgs
 			Clear();
 		}
 
+		public void SetClip(AnimationClip clip, bool applyRootMotion)
+		{
+			if (_animator == null || _source == null || clip == null)
+			{
+				return;
+			}
+			DestroyGraph();
+			_animator.applyRootMotion = applyRootMotion;
+			_animator.transform.SetPositionAndRotation(_rootPosition, _rootRotation);
+			_clipDuration = clip.length;
+			BuildGraph(clip);
+			EvaluateCurrentTime();
+		}
+
 		private void Update()
 		{
 			EvaluateCurrentTime();
@@ -103,6 +119,12 @@ namespace Mnnh.Dhmgs
 			if (_source == null || !_graphValid)
 			{
 				return;
+			}
+			if (_animator.applyRootMotion)
+			{
+				_clipPlayable.SetTime(0d);
+				_graph.Evaluate(0f);
+				_animator.transform.SetPositionAndRotation(_rootPosition, _rootRotation);
 			}
 			_clipPlayable.SetTime(System.Math.Max(0d, System.Math.Min(_source.CurrentTime, _clipDuration)));
 			_graph.Evaluate(0f);

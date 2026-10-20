@@ -14,6 +14,7 @@ namespace Mnnh.Dhmgs.Samples
 			DhmgsSampleImportResult imported, bool loop, CancellationToken cancellationToken);
 
 		public abstract void Play(IDhmgsPlaybackClock clock);
+		public abstract void SetHumanoidRootMotion(bool enabled);
 		public abstract void SetVideoOpacity(float opacity);
 		public abstract void SetVideoVisible(bool visible);
 		public abstract void Dispose();

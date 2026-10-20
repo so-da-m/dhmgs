@@ -19,6 +19,7 @@ namespace Mnnh.Dhmgs.Samples
 		[SerializeField] private DhmgsAvatarPreviewCamera _humanoidCamera;
 		[SerializeField] private DhmgsFullDemoSkeletonPreview _mainSkeleton;
 		[SerializeField] private DhmgsFullDemoSkeletonPreview _humanoidSkeleton;
+		[SerializeField] private Material _groundMaterial;
 
 		private readonly List<Action> _unbind = new List<Action>();
 		private VisualElement _documentRoot;
@@ -44,8 +45,13 @@ namespace Mnnh.Dhmgs.Samples
 		private Slider _videoOpacity;
 		private Toggle _mainBones;
 		private Toggle _mainNames;
+		private Toggle _mainGround;
+		private FloatField _mainGroundHeight;
+		private DropdownField _humanoidMode;
 		private Toggle _humanoidBones;
 		private Toggle _humanoidNames;
+		private Toggle _humanoidGround;
+		private FloatField _humanoidGroundHeight;
 		private Preview _mainPreview;
 		private Preview _humanoidPreview;
 		private int _scrubPointer = -1;
@@ -97,8 +103,14 @@ namespace Mnnh.Dhmgs.Samples
 			_videoOpacity = _root.Q<Slider>("video-opacity");
 			_mainBones = _root.Q<Toggle>("main-bones");
 			_mainNames = _root.Q<Toggle>("main-names");
+			_mainGround = _root.Q<Toggle>("main-ground");
+			_mainGroundHeight = _root.Q<FloatField>("main-ground-height");
+			_humanoidMode = _root.Q<DropdownField>("humanoid-mode");
+			_humanoidMode.choices = new List<string> { "In Place", "Root Motion" };
 			_humanoidBones = _root.Q<Toggle>("humanoid-bones");
 			_humanoidNames = _root.Q<Toggle>("humanoid-names");
+			_humanoidGround = _root.Q<Toggle>("humanoid-ground");
+			_humanoidGroundHeight = _root.Q<FloatField>("humanoid-ground-height");
 
 			Bind(_fetch, Fetch);
 			Bind(_cancelFetch, () => _controller.CancelImport());
@@ -129,8 +141,21 @@ namespace Mnnh.Dhmgs.Samples
 			Bind(_videoOpacity, value => _settings.SetVideoOpacity(value));
 			Bind(_mainBones, value => _settings.SetMainBones(value));
 			Bind(_mainNames, value => _settings.SetMainBoneNames(value));
+			Bind(_mainGround, value => _settings.SetMainGround(value));
+			Bind(_mainGroundHeight, value =>
+			{
+				_settings.SetMainGroundHeight(value);
+				_mainGroundHeight.SetValueWithoutNotify(_settings.MainGroundHeight);
+			});
+			Bind(_humanoidMode, _ => _playback.SetHumanoidRootMotion(_humanoidMode.index == 1));
 			Bind(_humanoidBones, value => _settings.SetHumanoidBones(value));
 			Bind(_humanoidNames, value => _settings.SetHumanoidBoneNames(value));
+			Bind(_humanoidGround, value => _settings.SetHumanoidGround(value));
+			Bind(_humanoidGroundHeight, value =>
+			{
+				_settings.SetHumanoidGroundHeight(value);
+				_humanoidGroundHeight.SetValueWithoutNotify(_settings.HumanoidGroundHeight);
+			});
 			Bind(_root.Q<Button>("reset-main"), () => _settings.ResetMainCamera());
 			Bind(_root.Q<Button>("reset-humanoid"), () => _settings.ResetHumanoidPreviewCamera());
 
@@ -143,9 +168,9 @@ namespace Mnnh.Dhmgs.Samples
 			_root.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
 			_root.EnableInClassList("demo--narrow", _root.resolvedStyle.width < 900f);
 			_mainPreview = new Preview(_root.Q("main-viewport"),
-				new DhmgsPreviewInput(_mainCamera.Orbit, _mainCamera.Pan, _mainCamera.Zoom));
+				new DhmgsPreviewInput(_mainCamera.Orbit, _mainCamera.Pan, _mainCamera.Zoom), _groundMaterial);
 			_humanoidPreview = new Preview(_root.Q("humanoid-viewport"),
-				new DhmgsPreviewInput(_humanoidCamera.Orbit, _humanoidCamera.Pan, _humanoidCamera.Zoom));
+				new DhmgsPreviewInput(_humanoidCamera.Orbit, _humanoidCamera.Pan, _humanoidCamera.Zoom), _groundMaterial);
 			_controller.Changed += RefreshImport;
 			_settings.Changed += RefreshSettings;
 			RefreshImport();
@@ -237,9 +262,15 @@ namespace Mnnh.Dhmgs.Samples
 			_mainBones.SetValueWithoutNotify(_settings.ShowMainBones);
 			_mainNames.SetValueWithoutNotify(_settings.ShowMainBoneNames);
 			_mainNames.SetEnabled(_settings.ShowMainBones);
+			_mainGround.SetValueWithoutNotify(_settings.ShowMainGround);
+			_mainGroundHeight.SetValueWithoutNotify(_settings.MainGroundHeight);
+			_mainGroundHeight.SetEnabled(_settings.ShowMainGround);
 			_humanoidBones.SetValueWithoutNotify(_settings.ShowHumanoidBones);
 			_humanoidNames.SetValueWithoutNotify(_settings.ShowHumanoidBoneNames);
 			_humanoidNames.SetEnabled(_settings.ShowHumanoidBones);
+			_humanoidGround.SetValueWithoutNotify(_settings.ShowHumanoidGround);
+			_humanoidGroundHeight.SetValueWithoutNotify(_settings.HumanoidGroundHeight);
+			_humanoidGroundHeight.SetEnabled(_settings.ShowHumanoidGround);
 		}
 
 		private static void RefreshChoices(DropdownField field, IReadOnlyList<string> names, int index)
@@ -279,14 +310,17 @@ namespace Mnnh.Dhmgs.Samples
 			}
 			RefreshPlayback();
 			_mainPreview.Refresh(_previewCamera.targetTexture, _mainSkeleton,
-				_settings.ShowMainBones, _settings.ShowMainBoneNames);
+				_settings.ShowMainBones, _settings.ShowMainBoneNames, _settings.ShowMainGround, _settings.MainGroundHeight);
 			_humanoidPreview.Refresh(_humanoidCamera.Texture, _humanoidSkeleton,
-				_settings.ShowHumanoidBones, _settings.ShowHumanoidBoneNames);
+				_settings.ShowHumanoidBones, _settings.ShowHumanoidBoneNames,
+				_settings.ShowHumanoidGround, _settings.HumanoidGroundHeight);
 		}
 
 		private void RefreshPlayback()
 		{
 			_refreshingPlayback = true;
+			_humanoidMode.SetValueWithoutNotify(_playback.HumanoidRootMotion ? "Root Motion" : "In Place");
+			_humanoidMode.SetEnabled(_playback.CanSetHumanoidRootMotion);
 			_play.SetEnabled(_playback.CanPlay);
 			_pause.SetEnabled(_playback.CanPause);
 			_stop.SetEnabled(_playback.CanStop);
@@ -439,16 +473,19 @@ namespace Mnnh.Dhmgs.Samples
 			private readonly VisualElement _viewport;
 			private readonly Image _image;
 			private readonly DhmgsSkeletonOverlay _overlay;
+			private readonly DhmgsFullDemoGround _ground;
 			private Camera _camera;
+			private Transform _origin;
 			private IReadOnlyList<Transform> _bones;
 			private float _aspect;
 
 			public DhmgsPreviewInput Input { get; }
 
-			public Preview(VisualElement viewport, DhmgsPreviewInput input)
+			public Preview(VisualElement viewport, DhmgsPreviewInput input, Material groundMaterial)
 			{
 				_viewport = viewport;
 				Input = input;
+				_ground = new DhmgsFullDemoGround(groundMaterial);
 				_image = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
 				_image.StretchToParentSize();
 				_overlay = new DhmgsSkeletonOverlay { pickingMode = PickingMode.Ignore };
@@ -460,9 +497,12 @@ namespace Mnnh.Dhmgs.Samples
 				_viewport.AddManipulator(Input);
 			}
 
-			public void Refresh(Texture texture, DhmgsFullDemoSkeletonPreview source, bool showBones, bool showNames)
+			public void Refresh(Texture texture, DhmgsFullDemoSkeletonPreview source,
+				bool showBones, bool showNames, bool showGround, float groundHeight)
 			{
 				_image.image = texture;
+				_ground.Refresh(source != null && source.HasSource ? source.Origin : null,
+					texture != null && showGround, groundHeight);
 				float aspect = texture != null && texture.height > 0 ? (float)texture.width / texture.height : 1f;
 				if (!Mathf.Approximately(_aspect, aspect))
 				{
@@ -475,11 +515,12 @@ namespace Mnnh.Dhmgs.Samples
 				{
 					return;
 				}
-				if (_camera != source.ProjectionCamera || !ReferenceEquals(_bones, source.Bones))
+				if (_camera != source.ProjectionCamera || _origin != source.Origin || !ReferenceEquals(_bones, source.Bones))
 				{
 					_camera = source.ProjectionCamera;
+					_origin = source.Origin;
 					_bones = source.Bones;
-					_overlay.Bind(_camera, _bones);
+					_overlay.Bind(_camera, _bones, _origin);
 				}
 				Rect bounds = _viewport.contentRect;
 				float scale = Mathf.Min(bounds.width / texture.width, bounds.height / texture.height);
@@ -495,6 +536,7 @@ namespace Mnnh.Dhmgs.Samples
 
 			public void Dispose()
 			{
+				_ground.Dispose();
 				_viewport.RemoveManipulator(Input);
 				_overlay.RemoveFromHierarchy();
 				_image.RemoveFromHierarchy();

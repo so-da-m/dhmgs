@@ -271,16 +271,7 @@ namespace Mnnh.Dhmgs.Editor
 			Transform root = animator.transform;
 			root.position = Vector3.zero;
 			root.rotation = Quaternion.identity;
-			player.ApplyPose(asset, 0);
-			if (!TryGetLowestFootBottomY(animator, out float firstFrameGroundY))
-			{
-				return new DhmgsHumanoidBakeArtifacts
-				{
-					Error = "Could not resolve the Humanoid left/right foot transforms.",
-				};
-			}
 
-			float groundOffsetY = -firstFrameGroundY;
 			Vector3 firstPelvisPosition = asset.pelvisPositions[0];
 			using HumanPoseHandler poseHandler = new HumanPoseHandler(avatar, animator.transform);
 			HumanPose humanPose = new HumanPose();
@@ -310,7 +301,7 @@ namespace Mnnh.Dhmgs.Editor
 				float time = frameIndex * frameDuration;
 				Vector3 relativePelvisPosition = asset.pelvisPositions[frameIndex] - firstPelvisPosition;
 
-				root.position = new Vector3(0f, groundOffsetY + relativePelvisPosition.y, 0f);
+				root.position = new Vector3(0f, relativePelvisPosition.y, 0f);
 				root.rotation = Quaternion.identity;
 				player.ApplyPose(asset, frameIndex);
 				poseHandler.GetHumanPose(ref humanPose);
@@ -326,10 +317,7 @@ namespace Mnnh.Dhmgs.Editor
 						new Keyframe(time, humanPose.muscles[muscleIndex]);
 				}
 
-				root.position = new Vector3(
-					relativePelvisPosition.x,
-					groundOffsetY + relativePelvisPosition.y,
-					relativePelvisPosition.z);
+				root.position = relativePelvisPosition;
 				poseHandler.GetHumanPose(ref humanPose);
 				bodyPosition = humanPose.bodyPosition;
 				rootMotionPositionX[frameIndex] = new Keyframe(time, bodyPosition.x);
@@ -471,26 +459,6 @@ namespace Mnnh.Dhmgs.Editor
 			cancellationToken.ThrowIfCancellationRequested();
 			EditorCurveBinding binding = EditorCurveBinding.FloatCurve(path, typeof(Transform), property);
 			AnimationUtility.SetEditorCurve(clip, binding, new AnimationCurve(keys));
-		}
-
-		private static bool TryGetLowestFootBottomY(Animator animator, out float groundY)
-		{
-			groundY = float.PositiveInfinity;
-			Transform leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
-			Transform rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
-			if (leftFoot != null)
-			{
-				Vector3 bottom = leftFoot.position + leftFoot.rotation *
-					new Vector3(0f, -Mathf.Max(0f, animator.leftFeetBottomHeight), 0f);
-				groundY = Mathf.Min(groundY, bottom.y);
-			}
-			if (rightFoot != null)
-			{
-				Vector3 bottom = rightFoot.position + rightFoot.rotation *
-					new Vector3(0f, -Mathf.Max(0f, animator.rightFeetBottomHeight), 0f);
-				groundY = Mathf.Min(groundY, bottom.y);
-			}
-			return !float.IsInfinity(groundY) && !float.IsNaN(groundY);
 		}
 
 		private static void ConfigureRootTransform(AnimationClip clip, bool inPlace)

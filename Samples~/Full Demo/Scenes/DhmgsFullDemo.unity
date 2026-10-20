@@ -950,6 +950,7 @@ MonoBehaviour:
   _humanoidCamera: {fileID: 1189339607}
   _mainSkeleton: {fileID: 620001400}
   _humanoidSkeleton: {fileID: 620002400}
+  _groundMaterial: {fileID: 2100000, guid: bf4bc8cb874947eba372f4523558443c, type: 2}
 --- !u!114 &1616594081
 MonoBehaviour:
   m_ObjectHideFlags: 0
