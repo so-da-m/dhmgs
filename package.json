@@ -1,6 +1,6 @@
 {
   "name": "com.mnnh.dhmgs",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "displayName": "MNNH DHMGS",
   "description": "DHMGS 서버의 ExAvatar 모션을 가져와 Unity Humanoid 애니메이션 클립으로 변환합니다.",
   "unity": "6000.0",
